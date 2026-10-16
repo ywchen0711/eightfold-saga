@@ -81,7 +81,7 @@ export function hero(c, id, x, y, s = 1, dir = 0, step = 0) {
 // ---------------------------------------------------------------- monsters
 // drawn standing on (x, y); k = scale (1 = a normal monster about 90 px tall); t = time for idle motion
 export function monster(c, art, hue, x, y, k, t = 0, o = {}) {
-  c.save(); c.translate(x, y); c.scale(k, k);
+  c.save(); c.translate(x, y); c.scale(o.flip ? -k : k, k);
   const b = Math.sin(t * 2.4 + hue) * 2, main = H(hue, 45, 45), dark = H(hue, 45, 28), light = H(hue, 55, 65);
   ell(c, 0, 0, 34, 7, 'rgba(0,0,0,.35)');
   if (o.flash) c.filter = 'brightness(2.2)';
@@ -277,3 +277,114 @@ function regionCol(l) {
   return map[l.region] || (l.y < 120 ? '#a8b8c8' : l.y > 420 && l.x < 700 ? '#d0b070' : l.x > 600 ? '#8a8a6a' : '#6a9a5a');
 }
 export const resetMap = () => { landCache = null; };
+
+// ---------------------------------------------------------------- battle sprites (16-bit style, about 32 px tall)
+// a hero standing on (x, y) facing left. pose: idle | step | atk | cast | hurt | def | ko | win. wtype: the weapon in hand
+const px = (c, x, y, w, h, col) => { c.fillStyle = col; c.fillRect(Math.round(x), Math.round(y), w, h); };
+export function battler(c, id, x, y, pose = 'idle', t = 0, wtype = 'sword', phase = 0) {
+  const d = DB.chars[id], lk = d.look, f = d.gender === 'f', skin = lk.skin, cl = lk.cloth, c2 = lk.cloth2, hc = lk.hairCol;
+  c.save(); c.translate(Math.round(x), Math.round(y));
+  px(c, -8, -1, 16, 2, 'rgba(0,0,0,.35)');
+  if (pose === 'ko') { // lying on the ground
+    px(c, -14, -6, 10, 5, cl); px(c, -4, -5, 9, 4, '#3a3040'); px(c, -20, -7, 7, 6, skin); px(c, -21, -8, 7, 3, hc); c.restore(); return;
+  }
+  const bob = pose === 'idle' ? (Math.sin(t * 3) > 0.6 ? -1 : 0) : 0, lean = pose === 'hurt' ? 3 : pose === 'atk' ? -2 : 0, crouch = pose === 'def' ? 3 : 0;
+  c.translate(lean, bob + crouch);
+  // legs (the front leg steps out when attacking)
+  const step = pose === 'atk' || pose === 'step' ? 3 : 0;
+  px(c, -4 - step, -11, 3, 11, '#3a3046'); px(c, 1, -11, 3, 11, '#2e2638'); px(c, -5 - step, -2, 4, 2, '#2a1e18'); px(c, 1, -2, 4, 2, '#2a1e18');
+  if (f && lk.extra !== 'armor') px(c, -6, -14, 12, 6, cl);
+  // body
+  px(c, -6, -22, 12, 11, cl); px(c, -6, -13, 12, 2, c2); px(c, -2, -22, 4, 2, c2);
+  if (lk.extra === 'armor') { px(c, -7, -22, 4, 3, '#c8ccd8'); px(c, 3, -22, 4, 3, '#c8ccd8'); }
+  // back arm
+  px(c, 4, -21, 3, 8, cl); px(c, 4, -14, 3, 2, skin);
+  // head, facing left
+  px(c, -5, -31, 9, 9, skin); px(c, -6, -28, 1, 2, skin);
+  px(c, -4, -27, 2, 2, '#1a1418'); px(c, -4, -27, 1, 1, '#fff');
+  if (f) px(c, -5, -25, 2, 1, 'rgba(255,120,120,.6)');
+  switch (lk.hair) {
+    case 'bald': break;
+    case 'spiky': px(c, -5, -34, 10, 4, hc); px(c, -3, -36, 2, 2, hc); px(c, 1, -37, 2, 3, hc); px(c, 4, -35, 2, 2, hc); px(c, 2, -31, 4, 6, hc); break;
+    case 'long': case 'wavy': case 'braid': px(c, -5, -34, 10, 4, hc); px(c, 1, -31, 5, 13, hc); if (lk.hair === 'braid') px(c, 4, -18, 2, 5, hc); break;
+    case 'pony': px(c, -5, -34, 10, 4, hc); px(c, 2, -31, 4, 5, hc); px(c, 5, -32, 3, 12, hc); break;
+    case 'bun': px(c, -5, -34, 10, 4, hc); px(c, 2, -31, 4, 6, hc); px(c, 0, -38, 5, 4, hc); break;
+    case 'messy': px(c, -6, -34, 11, 4, hc); px(c, -6, -31, 2, 2, hc); px(c, 3, -35, 3, 2, hc); px(c, 2, -31, 4, 6, hc); break;
+    default: px(c, -5, -34, 10, 4, hc); px(c, 2, -31, 4, 6, hc);
+  }
+  switch (lk.extra) {
+    case 'cap': px(c, -6, -35, 11, 3, cl); px(c, -9, -33, 4, 1, c2); break;
+    case 'hat': px(c, -8, -35, 15, 2, c2); px(c, -3, -41, 7, 6, c2); px(c, 0, -44, 3, 3, c2); break;
+    case 'shades': px(c, -4, -34, 7, 2, '#202028'); break;
+    case 'goggles': px(c, -6, -33, 11, 2, '#5a4030'); px(c, -5, -33, 3, 2, '#7ac8e8'); break;
+    case 'ribbon': px(c, 3, -36, 4, 3, '#c02a3a'); break;
+    case 'veil': px(c, -6, -27, 6, 4, 'rgba(160,40,90,.7)'); break;
+    case 'beard': px(c, -6, -25, 7, 4, hc); break;
+    case 'eyepatch': px(c, -5, -28, 3, 3, '#111'); break;
+    case 'mask': px(c, -6, -27, 9, 4, '#1a1a24'); break;
+    case 'hood': px(c, -6, -35, 12, 4, c2); px(c, 3, -33, 4, 12, c2); break;
+    case 'feather': px(c, 3, -38, 2, 5, '#e84a4a'); break;
+  }
+  // front arm and the weapon in hand
+  const ang = pose === 'atk' ? (phase < 0.5 ? -2.2 + phase * 4 : -0.2) : pose === 'cast' || pose === 'win' ? -2.5 : -0.4;
+  c.save(); c.translate(-4, -20); c.rotate(ang);
+  px(c, -1, 0, 3, 8, cl); px(c, -1, 7, 3, 2, skin);
+  c.translate(0, 8); weaponArt(c, wtype);
+  c.restore();
+  if (pose === 'cast') { c.globalAlpha = 0.5 + 0.5 * Math.sin(t * 20); px(c, -14, -40, 4, 4, '#fff6a0'); c.globalAlpha = 1; }
+  if (pose === 'def') px(c, -10, -22, 3, 11, '#a8acc0');
+  c.restore();
+}
+function weaponArt(c, type) {
+  const steel = '#dfe4ee', wood = '#8a5a2a', gold = '#d8b060';
+  switch (type) {
+    case 'sword': px(c, -2, 1, 5, 1, gold); px(c, 0, 2, 2, 12, steel); break;
+    case 'greatsword': px(c, -2, 1, 6, 2, gold); px(c, -1, 3, 4, 17, steel); px(c, 0, 3, 1, 17, '#fff'); break;
+    case 'katana': px(c, -1, 1, 4, 1, gold); px(c, 0, 2, 2, 13, steel); px(c, 1, 14, 1, 2, steel); break;
+    case 'rapier': px(c, -2, 0, 5, 2, gold); px(c, 0, 2, 1, 15, steel); break;
+    case 'dagger': px(c, -1, 1, 4, 1, gold); px(c, 0, 2, 2, 6, steel); break;
+    case 'axe': px(c, 0, -4, 2, 16, wood); px(c, -5, 8, 6, 6, steel); break;
+    case 'mace': px(c, 0, 0, 2, 10, wood); px(c, -2, 9, 6, 5, '#a8a8b8'); break;
+    case 'spear': px(c, 0, -10, 1, 26, wood); px(c, -1, 15, 3, 5, steel); break;
+    case 'bow': c.strokeStyle = wood; c.lineWidth = 2; c.beginPath(); c.arc(-3, 4, 9, -1.2, 1.2); c.stroke(); px(c, 1, -4, 1, 16, '#e8e8e8'); break;
+    case 'staff': px(c, 0, -8, 2, 22, wood); px(c, -1, 13, 4, 4, '#7ad8ff'); break;
+    case 'whip': c.strokeStyle = '#6a3a1a'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(10, 8, 2, 18); c.stroke(); break;
+    case 'scythe': px(c, 0, -6, 2, 24, wood); px(c, -8, 16, 9, 2, steel); px(c, -9, 14, 2, 3, steel); break;
+    case 'thrown': px(c, -2, 0, 5, 1, steel); px(c, 0, -2, 1, 5, steel); break;
+    case 'gun': px(c, -1, 0, 3, 4, wood); px(c, 0, 4, 2, 9, '#5a5a66'); break;
+    default: break; // bare hands
+  }
+}
+
+// ---------------------------------------------------------------- painted battle backgrounds (16-bit style layers)
+const band = (c, y0, y1, cols, W) => { const n = cols.length; for (let i = 0; i < n; i++) px(c, 0, y0 + (y1 - y0) * i / n, W, Math.ceil((y1 - y0) / n) + 1, cols[i]); };
+function shades(hex, n, dl) { const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16); return Array.from({ length: n }, (_, i) => { const k = 1 + dl * (i / (n - 1) - 0.5); return `rgb(${Math.min(255, r * k) | 0},${Math.min(255, g * k) | 0},${Math.min(255, b * k) | 0})`; }); }
+const LAYERS = { cave: 'rocks', mine: 'rocks', mountain: 'peaks', ruins: 'pillars', tomb: 'pillars', castle: 'castle', fort: 'castle', tower: 'castle', sewer: 'pipes', factory: 'pipes',
+  forest: 'trees', swamp: 'trees', ice: 'peaks', desert: 'dunes', sea: 'waves', volcano: 'peaks', sky: 'clouds', void: 'stars' };
+export function pixelBg(c, theme, W, H, t) {
+  const T = THEMES[theme] || THEMES.cave, hz = Math.round(H * 0.46), r = (i) => ((i * 9301 + 49297) % 233280) / 233280;
+  band(c, 0, hz, [...shades(T.bg[0], 3, 0.5), ...shades(T.bg[1], 4, 0.4)], W);
+  const kind = LAYERS[theme] || 'rocks', far = shades(T.wall, 3, 0.5);
+  if (['stars', 'clouds', 'dunes', 'peaks', 'waves'].includes(kind)) for (let i = 0; i < 40; i++) px(c, r(i) * W, r(i + 99) * hz * 0.7, 1, 1, `rgba(255,255,255,${0.3 + 0.4 * Math.sin(t * 2 + i)})`);
+  for (let layer = 0; layer < 2; layer++) {
+    const col = layer ? T.wall : far[0], baseY = hz - (layer ? 0 : 6);
+    for (let x = -20, i = layer * 50; x < W + 20; i++) {
+      const w = 14 + r(i) * 30, h = (layer ? 26 : 44) * (0.5 + r(i + 7));
+      if (kind === 'peaks' || kind === 'rocks') { c.fillStyle = col; c.beginPath(); c.moveTo(x, baseY); c.lineTo(x + w / 2, baseY - h); c.lineTo(x + w, baseY); c.fill(); if (kind === 'peaks') px(c, x + w / 2 - 2, baseY - h, 4, 3, theme === 'volcano' ? '#ff6a2a' : '#e8f0ff'); }
+      else if (kind === 'trees') { px(c, x + w / 2 - 2, baseY - h * 0.4, 4, h * 0.4, '#2a1a10'); c.fillStyle = layer ? T.top : far[1]; c.beginPath(); c.moveTo(x, baseY - h * 0.3); c.lineTo(x + w / 2, baseY - h * 1.3); c.lineTo(x + w, baseY - h * 0.3); c.fill(); }
+      else if (kind === 'pillars') { if (i % 2) { px(c, x + 4, baseY - h * 1.4, 10, h * 1.4, col); px(c, x + 2, baseY - h * 1.4, 14, 4, T.top); } }
+      else if (kind === 'castle') { px(c, x, baseY - h, w, h, col); for (let k = 0; k < w; k += 6) px(c, x + k, baseY - h - 4, 4, 4, col); if (layer && i % 2) px(c, x + w / 2 - 2, baseY - h * 0.6, 4, 6, '#ffd070'); }
+      else if (kind === 'pipes') { px(c, x, baseY - h, 6, h, col); px(c, x - 2, baseY - h, 10, 3, T.top); if (layer) px(c, x, baseY - h * 0.5, w, 4, col); }
+      else if (kind === 'dunes') { c.fillStyle = layer ? T.top : far[2]; c.beginPath(); c.ellipse(x + w, baseY, w * 1.4, h * 0.5, 0, Math.PI, 0); c.fill(); }
+      else if (kind === 'waves') { for (let k = 0; k < w; k += 8) px(c, x + k, baseY - 3 - ((k + i + Math.floor(t * 4)) % 3), 6, 2, layer ? '#9ad8f0' : T.top); }
+      else if (kind === 'clouds') { c.fillStyle = 'rgba(255,255,255,.75)'; c.beginPath(); c.ellipse(x + w, baseY - h * 0.8, w, h * 0.25, 0, 0, 7); c.fill(); }
+      else if (kind === 'stars') { if (i % 3 === 0) px(c, x, baseY - h, w * 0.6, h * 0.3, far[2]); }
+      x += w * (layer ? 0.9 : 1.1);
+    }
+  }
+  // the ground, banded towards the viewer, with perspective lines
+  band(c, hz, H, shades(T.floor, 6, 0.7), W);
+  c.globalAlpha = 0.18; for (let i = -10; i < 12; i++) { c.strokeStyle = T.wall; c.lineWidth = 1; c.beginPath(); c.moveTo(W / 2 + i * 14, hz); c.lineTo(W / 2 + i * 70, H); c.stroke(); } c.globalAlpha = 1;
+  for (let i = 0; i < 30; i++) px(c, r(i + 300) * W, hz + 4 + r(i + 400) * (H - hz), 2, 1, T.wall);
+  if (theme === 'volcano') for (let i = 0; i < 8; i++) px(c, r(i + 500) * W, hz + r(i + 600) * (H - hz), 6, 1, '#ff5a1a');
+}

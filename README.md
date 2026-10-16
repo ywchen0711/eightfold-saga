@@ -46,6 +46,7 @@ There are also ten companions you can hire at guilds: a smith, a sister, a huntr
   - Sea routes that need a ship pass.
 - **The ten Fate Stones** each raise the party's stats and take 7% off the evil god's life. The final battle is optional to prepare for; how hard it is depends on you.
 - After the ending you can keep exploring.
+- **Romancing SaGa-style battles:** monsters on the left, the party standing on the right in formation, drawn as 16-bit pixel sprites (rendered small and scaled up with hard pixel edges, with dark outlines) on painted, colour-banded backgrounds. Heroes step in to strike with the weapon they hold, raise their arms to cast, recoil and fall; SFC-style blue windows show the commands and the party's HP / WP / JP / LP.
 
 **How long it takes.** The balance simulation (`tools/sim.mjs`) plays the main path with auto-battling bots. That takes about 800 battles. With walking dungeons, towns, story, glimmer hunting and the optional Tower of Stars, a full playthrough is designed to take about **35–40 hours**.
 

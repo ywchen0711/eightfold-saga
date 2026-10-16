@@ -1,66 +1,106 @@
-// The battle screen: enemies on the canvas, the party as cards at the bottom, a command menu per member, then the
-// round's log played back with damage numbers, knock-outs and glimmer flashes. run(spec) resolves to win/lose/flee.
+// The battle screen, laid out like Romancing SaGa: monsters on the left, the party standing on the right facing
+// them, drawn as 16-bit pixel sprites. A status window and a command window sit at the bottom. The round's log is
+// played back with lunges, slashes, damage numbers and glimmer flashes. run(spec) resolves to win/lose/flee.
 import { DB } from '../data/index.js';
 import { rng, weaponsOf, techsFor, derived } from '../engine/state.js';
 import { startBattle, resolveTurn, autoCommand, finishBattle, unitOf } from '../engine/battle.js';
 import { App, $, el, btn, esc, toast, itemName } from './app.js';
 import { L, t } from './i18n.js';
-import { monster, battleBg, portrait } from './art.js';
+import { monster, battler, pixelBg } from './art.js';
+import { beginLow, endLow, outlined } from './pixel.js';
 
-let B = null, R = null, done = null, cmds = {}, who = 0, fx = [], msg = '', flash = {}, shake = 0, theme = 'cave', auto = false, glim = null;
+let B = null, R = null, done = null, cmds = {}, who = 0, fx = [], sfx = [], msg = '', flash = {}, shake = 0, theme = 'cave', auto = false, glim = null, G = null;
 const living = (list) => list.filter((u) => !u.ko && u.hp > 0);
 const nm = (u) => (u.side === 'p' ? L(DB.chars[u.c.id]) : L(u));
-const BAR = () => Math.min(150, Math.max(104, App.h * 0.24));
+const narrow = () => App.w <= 700;
+// the scene's height on screen: all of it on wide screens (windows float over the ground), the top part on phones
+const sceneH = () => (narrow() ? Math.round(App.h * 0.44) : App.h);
+const VH = 240;
 
+// where everyone stands, in game pixels (feet positions)
 function layout() {
-  // on narrow screens the command menu sits above the party, so the monsters stand higher up
-  const n = B.enemies.length, top = App.w > 700 ? App.h - BAR() : App.h - BAR() - Math.min(App.h * 0.4, 330), k = Math.max(0.45, Math.min(1.3, Math.min(App.w / 900, top / 420)));
+  const s = sceneH() / VH, W = App.w / s, H = VH, wide = !narrow();
+  const yA = H * (wide ? 0.5 : 0.68), yB = H * (wide ? 0.64 : 0.9);
+  G = { s, W, H, yA, yB };
+  const n = B.enemies.length, unit = H * 0.22 / 90;
+  const left = W * 0.04, right = W * (wide ? 0.55 : 0.6);
   B.enemies.forEach((e, i) => {
-    const col = n <= 4 ? i : i % 4, row = n <= 4 ? 0 : Math.floor(i / 4), per = n <= 4 ? n : Math.min(4, n - row * 4);
-    const aw = App.w > 700 ? App.w - 350 : App.w;   // keep clear of the command menu on wide screens
-    e.px = aw * (col + 1) / (per + 1); e.py = top * (row ? 0.48 : 0.86) - (e.fly ? 30 * k : 0); e.k = k * (e.boss ? e.size * 0.62 : e.size);
+    if (e.boss) { e.vx = left + (right - left) * 0.48; e.vy = yB; e.k = unit * e.size * 0.78; return; }
+    const two = n > 3, row = two ? (i < Math.ceil(n / 2) ? 0 : 1) : 1, inRow = two ? (row === 0 ? Math.ceil(n / 2) : n - Math.ceil(n / 2)) : n, j = two && row === 1 ? i - Math.ceil(n / 2) : i;
+    e.vx = left + (right - left) * (j + 0.5) / inRow + (row === 0 ? -W * 0.03 : W * 0.03); e.vy = (row ? yB : yA) - (e.fly ? H * 0.06 : 0); e.k = unit * e.size * (two ? 0.85 : 1);
   });
+  // a minion beside a boss stands to the front
+  if (B.enemies[0] && B.enemies[0].boss) B.enemies.slice(1).forEach((e, i) => { e.vx = left + (right - left) * (i % 2 ? 0.9 : 0.1); e.vy = i < 2 ? yB : yA; e.k = unit * e.size * 0.8; });
+  // the party: a slanted column, front-left to back-right (the SaGa formation)
+  const m = B.party.length;
+  B.party.forEach((u, i) => { const f = m > 1 ? i / (m - 1) : 0.5; u.vx = W * (wide ? 0.66 : 0.68) + W * (wide ? 0.2 : 0.24) * f + (i % 2 ? W * 0.02 : 0); u.vy = yA - H * 0.02 + (yB - yA + H * 0.04) * f; });
 }
+// ---------------------------------------------------------------- drawing
 function draw() {
-  if (App.screen !== 'battle') return;
-  const c = App.cx, w = App.w, h = App.h, top = h - BAR();
-  c.save(); if (shake > 0) c.translate((Math.random() - 0.5) * shake, 0);
-  c.fillStyle = '#08060e'; c.fillRect(0, 0, w, h);
-  battleBg(c, theme, w, w > 700 ? top : (top - Math.min(h * 0.4, 330)) * 1.25, App.time);
-  for (const e of [...B.enemies].sort((a, b) => a.py - b.py)) {
-    if (e.ko && !e.fade) continue;
-    if (e.ko) { e.fade -= 0.04; if (e.fade <= 0) { e.fade = 0; continue; } c.globalAlpha = e.fade; }
-    monster(c, e.art, e.hue, e.px, e.py, e.k, App.time + e.i, { flash: flash['e' + e.i] > 0 });
-    c.globalAlpha = 1;
-    if (pickTarget && !e.ko) { c.strokeStyle = '#ffe070'; c.lineWidth = 2; c.strokeRect(e.px - 46 * e.k, e.py - 100 * e.k, 92 * e.k, 104 * e.k); }
-    if (Object.keys(e.st).length) { c.font = '13px sans-serif'; c.fillStyle = '#ffe070'; c.fillText(Object.keys(e.st).map((s) => L(DB.statuses[s])).join(' '), e.px - 30, e.py + 16); }
+  if (App.screen !== 'battle' || !G) return;
+  App.cx.fillStyle = '#05050c'; App.cx.fillRect(0, 0, App.w, App.h);
+  const sh = sceneH(), f = beginLow(VH * (App.h / sh)), c = f.c;
+  c.save(); if (shake > 0) c.translate(Math.round((Math.random() - 0.5) * shake), 0);
+  pixelBg(c, theme, G.W, VH, App.time);
+  // everyone sorted by depth
+  const all = [...B.enemies.filter((e) => !(e.ko && !(e.fade > 0))), ...B.party];
+  all.sort((a, b) => a.vy - b.vy);
+  for (const u of all) {
+    const a = u.anim; let ox = 0, oy = 0;
+    if (a) { const p = Math.min(1, a.t / a.dur), out = p < 0.5 ? p * 2 : (1 - p) * 2; ox = (a.dx || 0) * out; oy = (a.dy || 0) * out; }
+    if (u.side === 'e') {
+      if (u.ko) { u.fade -= 0.035; if (u.fade <= 0) continue; c.globalAlpha = Math.max(0, u.fade); }
+      const k = u.k, w = 130 * k, h = 140 * k;
+      outlined(c, u.vx + ox - w / 2, u.vy + oy - h + 8 * k, w, h, (tc) => monster(tc, u.art, u.hue, w / 2, h - 8 * k, k, App.time + u.i, { flip: true, flash: flash['e' + u.i] > 0 }));
+      c.globalAlpha = 1;
+      if (pickTarget && !u.ko) { c.strokeStyle = '#ffe070'; c.lineWidth = 1; c.strokeRect(Math.round(u.vx - w * 0.4) + 0.5, Math.round(u.vy - h * 0.8) + 0.5, Math.round(w * 0.8), Math.round(h * 0.82)); }
+    } else {
+      const ws = weaponsOf(u.c), wtype = (a && a.wtype) || ws[0].type;
+      const pose = u.ko ? 'ko' : a ? a.pose : B.over === 'win' ? 'win' : u.hp < u.d.mhp * 0.25 ? 'hurt' : u.defending ? 'def' : pickAlly || who === u.i ? 'step' : 'idle';
+      if (flash['p' + u.i] > 0 && Math.floor(App.time * 30) % 2) c.globalAlpha = 0.4;
+      outlined(c, u.vx + ox - 24, u.vy + oy - 52, 48, 56, (tc) => battler(tc, u.c.id, 24, 52, pose, App.time + u.i, wtype, a ? a.t / a.dur : 0));
+      c.globalAlpha = 1;
+      if (who === u.i && !busy && !B.over) { c.fillStyle = '#ffe070'; c.fillRect(Math.round(u.vx) - 1, Math.round(u.vy) - 50 + (Math.floor(App.time * 4) % 2), 3, 3); }
+    }
   }
-  for (const f of fx) { c.globalAlpha = Math.min(1, f.t * 2); c.font = `bold ${f.big ? 30 : 22}px sans-serif`; c.textAlign = 'center'; c.lineWidth = 4; c.strokeStyle = '#000'; c.strokeText(f.text, f.x, f.y); c.fillStyle = f.col; c.fillText(f.text, f.x, f.y); }
-  c.globalAlpha = 1; c.textAlign = 'left';
-  if (msg) { c.font = 'bold 18px sans-serif'; const tw = c.measureText(msg).width; c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(w / 2 - tw / 2 - 16, 12, tw + 32, 34); c.fillStyle = '#fff'; c.textAlign = 'center'; c.fillText(msg, w / 2, 36); c.textAlign = 'left'; }
-  if (glim) { const a = Math.min(1, glim.t * 2); c.globalAlpha = a; c.fillStyle = 'rgba(255,240,150,.25)'; c.fillRect(0, 0, w, top);
-    c.font = 'bold 54px sans-serif'; c.textAlign = 'center'; c.fillText('💡', w / 2, top * 0.38); c.font = 'bold 30px sans-serif'; c.lineWidth = 6; c.strokeStyle = '#3a2a00';
-    c.strokeText(`${t('glimmer')} ${glim.name}`, w / 2, top * 0.38 + 50); c.fillStyle = '#fff6c0'; c.fillText(`${t('glimmer')} ${glim.name}`, w / 2, top * 0.38 + 50); c.textAlign = 'left'; c.globalAlpha = 1; }
+  // effects: slashes, bursts, sparkles
+  for (const e of sfx) {
+    const p = 1 - e.t / e.dur; c.globalAlpha = 1 - p * 0.8;
+    if (e.k === 'slash') { c.strokeStyle = '#fff8d0'; c.lineWidth = 2; c.beginPath(); c.moveTo(e.x - 14 + p * 6, e.y - 16); c.lineTo(e.x + 14 - p * 6, e.y + 10); c.stroke(); c.strokeStyle = '#ffd040'; c.lineWidth = 1; c.beginPath(); c.moveTo(e.x - 10, e.y - 14); c.lineTo(e.x + 12, e.y + 8); c.stroke(); }
+    if (e.k === 'burst') for (let i = 0; i < 8; i++) { const ang = i / 8 * 6.283, r = 4 + p * 18; c.fillStyle = e.col; c.fillRect(Math.round(e.x + Math.cos(ang) * r) - 1, Math.round(e.y + Math.sin(ang) * r * 0.7) - 1, 3, 3); }
+    if (e.k === 'heal') for (let i = 0; i < 5; i++) { c.fillStyle = '#9affb0'; c.fillRect(Math.round(e.x - 8 + i * 4), Math.round(e.y - p * 20 - (i % 2) * 6), 2, 2); }
+    c.globalAlpha = 1;
+  }
   c.restore();
+  endLow(f);
+  // text on top at full resolution: damage numbers, the line of the round, glimmers
+  const X = App.cx, s = G.s, w = App.w;
+  for (const n of fx) { X.globalAlpha = Math.min(1, n.t * 2); X.font = `bold ${n.big ? 28 : 20}px sans-serif`; X.textAlign = 'center'; X.lineWidth = 4; X.strokeStyle = '#000'; X.strokeText(n.text, n.x, n.y); X.fillStyle = n.col; X.fillText(n.text, n.x, n.y); }
+  X.globalAlpha = 1; X.textAlign = 'left';
+  for (const e of B.enemies) if (!e.ko && Object.keys(e.st).length) { X.font = '12px sans-serif'; X.fillStyle = '#ffe070'; X.fillText(Object.keys(e.st).map((k) => L(DB.statuses[k])).join(' '), e.vx * s - 24, e.vy * s + 14); }
+  if (msg) { X.font = 'bold 17px sans-serif'; const tw = X.measureText(msg).width; X.fillStyle = 'rgba(16,24,96,.92)'; X.fillRect(w / 2 - tw / 2 - 16, 10, tw + 32, 32); X.strokeStyle = '#e8e8f8'; X.lineWidth = 2; X.strokeRect(w / 2 - tw / 2 - 16, 10, tw + 32, 32); X.fillStyle = '#fff'; X.textAlign = 'center'; X.fillText(msg, w / 2, 32); X.textAlign = 'left'; }
+  if (glim) { const a = Math.min(1, glim.t * 2), cy = sceneH() * 0.3; X.globalAlpha = a; X.fillStyle = 'rgba(255,240,150,.22)'; X.fillRect(0, 0, w, sceneH());
+    X.font = 'bold 48px sans-serif'; X.textAlign = 'center'; X.fillText('💡', glim.x || w / 2, cy); X.font = 'bold 28px sans-serif'; X.lineWidth = 6; X.strokeStyle = '#3a2a00';
+    X.strokeText(`${t('glimmer')} ${glim.name}`, w / 2, cy + 46); X.fillStyle = '#fff6c0'; X.fillText(`${t('glimmer')} ${glim.name}`, w / 2, cy + 46); X.textAlign = 'left'; X.globalAlpha = 1; }
 }
 function tick(dt) {
   for (const f of fx) { f.t -= dt; f.y -= 30 * dt; } fx = fx.filter((f) => f.t > 0);
+  for (const e of sfx) e.t -= dt; sfx = sfx.filter((e) => e.t > 0);
+  if (B) for (const u of [...B.party, ...B.enemies]) if (u.anim) { u.anim.t += dt; if (u.anim.t >= u.anim.dur) u.anim = null; }
   for (const k in flash) flash[k] -= dt; if (shake > 0) shake -= dt * 30; if (glim) { glim.t -= dt; if (glim.t <= 0) glim = null; }
 }
-// ---------------------------------------------------------------- the party bar
+// ---------------------------------------------------------------- the status window (SaGa style: name, HP, WP, JP, LP)
 function partyBar() {
-  const hud = $('#hud'); hud.innerHTML = ''; const bar = el('div', 'pbar'); bar.style.height = BAR() + 'px';
+  const hud = $('#hud'); hud.innerHTML = ''; const box = el('div', 'bstat bwin');
   for (const u of B.party) {
-    const c = u.c, d = u.d, card = el('div', 'pcard' + (u.ko ? ' ko' : '') + (who === u.i && !busy ? ' cur' : '') + (flash['p' + u.i] > 0 ? ' hit' : ''));
-    const cv = el('canvas', 'pf'); cv.width = cv.height = 64; portrait(cv.getContext('2d'), c.id, 0, 0, 1); card.appendChild(cv);
+    const c = u.c, d = u.d, row = el('div', 'brow' + (u.ko ? ' ko' : '') + (who === u.i && !busy ? ' cur' : '') + (flash['p' + u.i] > 0 ? ' hit' : ''));
     const st = Object.keys(u.st).map((s) => `<span style="color:${DB.statuses[s].col}">${L(DB.statuses[s])}</span>`).join(' ');
-    card.appendChild(el('div', 'pinfo', `<div class="pn">${esc(L(DB.chars[c.id]))} <span class="lp">LP ${c.lp}</span></div>
-      <div class="bar hp"><i style="width:${Math.max(0, u.hp / d.mhp * 100)}%"></i><span>${Math.max(0, Math.round(u.hp))}/${d.mhp}</span></div>
-      <div class="sm">WP ${c.wp}/${c.mwp} · JP ${c.jp}/${c.mjp}</div><div class="sm">${st}</div>`));
-    card.onclick = () => { if (pickAlly) pickAlly(u.i); };
-    bar.appendChild(card);
+    row.innerHTML = `<b class="bn">${esc(L(DB.chars[c.id]))}</b><span class="bh"><i style="width:${Math.max(0, u.hp / d.mhp * 100)}%"></i><em>${Math.max(0, Math.round(u.hp))}</em></span>`
+      + `<span class="bw">WP<b>${c.wp}</b></span><span class="bw">JP<b>${c.jp}</b></span><span class="bl">LP<b>${c.lp}</b></span><span class="bs">${st}</span>`;
+    row.onclick = () => { if (pickAlly) pickAlly(u.i); };
+    box.appendChild(row);
   }
-  hud.appendChild(bar);
+  hud.appendChild(box);
 }
 // ---------------------------------------------------------------- choosing commands
 let pickTarget = null, pickAlly = null, busy = false;
@@ -119,9 +159,14 @@ function itemMenu() {
 // ---------------------------------------------------------------- playing a round back
 const wait = (ms) => new Promise((r) => setTimeout(r, App.fast ? ms * 0.35 : ms));
 function posOf(rf) {
-  if (rf.s === 'e') { const e = B.enemies[rf.i]; return [e.px, e.py - 70 * e.k]; }
-  const cards = document.querySelectorAll('.pcard'), r = cards[rf.i] && cards[rf.i].getBoundingClientRect();
-  return r ? [r.left + r.width / 2, r.top - 8] : [App.w / 2, App.h - 60];
+  const u = unitOf(B, rf), s = G.s;
+  return u.side === 'e' ? [u.vx * s, (u.vy - 70 * u.k) * s] : [u.vx * s, (u.vy - 40) * s];
+}
+const ELEM_COL = { fire: '#ff7a3a', water: '#6ab8ff', wind: '#8affb0', earth: '#d8a85a', light: '#fff4a0', dark: '#b07aff', star: '#a8e0ff', spirit: '#ff9ad8', poison: '#7adf5a' };
+// an actor steps toward its target (party) or lunges at the party (monsters)
+function lunge(u, target, pose, wtype) {
+  const dx = target ? (target.vx - u.vx) * 0.35 : u.side === 'p' ? -18 : 16, dy = target ? (target.vy - u.vy) * 0.2 : 0;
+  u.anim = { pose, t: 0, dur: pose === 'cast' ? 0.6 : 0.5, dx: pose === 'cast' ? -4 : dx, dy: pose === 'cast' ? 0 : dy, wtype };
 }
 const num = (rf, text, col, big) => { const [x, y] = posOf(rf); fx.push({ x: x + (Math.random() - 0.5) * 30, y, text, col, t: 1.1, big }); };
 async function play() {
@@ -132,10 +177,16 @@ async function play() {
     switch (ev.t) {
       case 'act': {
         const name = ev.tech ? L(DB.techs[ev.tech]) : ev.spell ? L(DB.spells[ev.spell]) : ev.item ? itemName(ev.item) : ev.skill ? L(DB.eskills[ev.skill]) : t('attack');
+        const tgt = living(u.side === 'p' ? B.enemies : B.party)[0];
+        if (u.side === 'p') { const wtype = ev.tech ? DB.techs[ev.tech].type : (DB.weapons[ev.w] || { type: 'fist' }).type; lunge(u, ev.spell || ev.item ? null : tgt, ev.spell || ev.item ? 'cast' : 'atk', wtype); }
+        else { lunge(u, null, 'atk'); flash['e' + u.i] = 0.15; }
         msg = ev.confused ? `${nm(u)}…？` : `${nm(u)}：${name}`; await wait(ev.tech || ev.spell || ev.skill ? 520 : 300); break; }
-      case 'glimmer': { const name = ev.kind === 'tech' ? L(DB.techs[ev.id]) : L(DB.spells[ev.id]); glim = { name, t: 1.3 }; msg = `💡 ${nm(u)}`; await wait(1200); break; }
-      case 'dmg': flash[(ev.tg.s === 'e' ? 'e' : 'p') + ev.tg.i] = 0.25; num(ev.tg, ev.n, ev.tg.s === 'p' ? '#ff8a8a' : ev.crit ? '#ffe070' : '#fff', ev.crit); if (ev.tg.s === 'p') { shake = 8; partyBar(); } await wait(260); break;
-      case 'heal': num(ev.tg, '+' + ev.n, '#7dff9a'); partyBar(); await wait(220); break;
+      case 'glimmer': { const name = ev.kind === 'tech' ? L(DB.techs[ev.id]) : L(DB.spells[ev.id]); glim = { name, t: 1.3, x: u.vx * G.s }; msg = `💡 ${nm(u)}`; await wait(1200); break; }
+      case 'dmg': {
+        flash[(ev.tg.s === 'e' ? 'e' : 'p') + ev.tg.i] = 0.25; num(ev.tg, ev.n, ev.tg.s === 'p' ? '#ff8a8a' : ev.crit ? '#ffe070' : '#fff', ev.crit);
+        const col = ELEM_COL[ev.el]; sfx.push(col ? { k: 'burst', x: u.vx, y: u.vy - (u.side === 'e' ? 50 * u.k : 22), col, t: 0.45, dur: 0.45 } : { k: 'slash', x: u.vx, y: u.vy - (u.side === 'e' ? 50 * u.k : 22), t: 0.3, dur: 0.3 });
+        if (ev.tg.s === 'p') { shake = 6; u.anim = { pose: 'hurt', t: 0, dur: 0.35, dx: 6, dy: 0 }; partyBar(); } await wait(260); break; }
+      case 'heal': num(ev.tg, '+' + ev.n, '#7dff9a'); sfx.push({ k: 'heal', x: u.vx, y: u.vy - 20, t: 0.6, dur: 0.6 }); partyBar(); await wait(220); break;
       case 'miss': num(ev.tg, 'MISS', '#bbb'); await wait(200); break;
       case 'ko': if (ev.tg.s === 'e') { u.fade = 1; } else { msg = `${nm(u)} ✝ LP ${ev.lp}`; partyBar(); } await wait(380); break;
       case 'lp': num(ev.tg, 'LP -1', '#ff4a4a'); partyBar(); await wait(250); break;
@@ -152,7 +203,7 @@ async function play() {
       case 'noflee': msg = t('cantFlee'); await wait(500); break;
       case 'steal': num(ev.tg, `+${ev.n}G`, '#ffd76a'); await wait(250); break;
       case 'stolen': msg = L({ zh: `被偷走了 ${ev.n} G！`, en: `${ev.n} G stolen!` }); await wait(500); break;
-      case 'split': layout(); await wait(300); break;
+      case 'split': { const o = B.enemies[B.enemies.length - 1]; layout(); o.fade = 1; await wait(300); break; }
       case 'wp': num(ev.tg, `WP+${ev.n}`, '#9ad8ff'); break;
     }
   }
@@ -195,7 +246,11 @@ App.screens.battle = {
     });
   },
   enter() {}, draw, tick,
-  click(x, y) { if (!pickTarget) return; for (const e of B.enemies) if (!e.ko && Math.abs(x - e.px) < 50 * e.k && y < e.py + 10 && y > e.py - 110 * e.k) { pickTarget(e.i); return; } },
+  click(x, y) {
+    if (!G) return; const vx = x / G.s, vy = y / G.s;
+    if (pickTarget) for (const e of B.enemies) if (!e.ko && Math.abs(vx - e.vx) < 55 * e.k && vy < e.vy + 6 && vy > e.vy - 120 * e.k) { pickTarget(e.i); return; }
+    if (pickAlly) for (const u of B.party) if (Math.abs(vx - u.vx) < 14 && vy < u.vy + 4 && vy > u.vy - 40) { pickAlly(u.i); return; }
+  },
   resize() { if (B) { layout(); partyBar(); } },
   key(k) { if (k === 'cancel' && !busy && (pickTarget || pickAlly)) { pickTarget = pickAlly = null; menu(); } },
 };
