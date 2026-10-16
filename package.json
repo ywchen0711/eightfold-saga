@@ -1,0 +1,6 @@
+{
+  "name": "eightfold-saga",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node tools/validate.mjs && node tools/test.mjs && node tools/sim.mjs" }
+}
