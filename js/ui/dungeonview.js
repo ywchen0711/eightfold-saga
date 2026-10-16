@@ -7,7 +7,8 @@ import { encounter } from '../engine/battle.js';
 import { App, $, el, btn, esc, toast, itemName, choice, bossCleared, event } from './app.js';
 import { L, t } from './i18n.js';
 import { THEMES } from './art.js';
-import { stamp, shadow, heroSprite, HERO_BOX, monsterSprite, particles, bloom, lightOf, mix } from './hd.js';
+import { shadow, monsterSprite, particles, bloom, lightOf, mix } from './hd.js';
+import { drawChibi } from './chibi.js';
 
 let fl = null, syms = [], R = rng(1), px = 0, py = 0, dir = 0, face = -1, anim = 0, cool = 0, symT = 0, safe = 0, inBattle = false, moving = false;
 const D = () => DB.dungeons[App.S.dungeon.id];
@@ -99,7 +100,7 @@ App.screens.dungeon = {
   // drifting dust and a tilt-shift blur at the top and bottom of the view
   draw() {
     if (!fl) return;
-    const W = App.w, H = App.h, ts = Math.round(Math.max(52, Math.min(110, Math.min(W, H) / 7.2))), lift = Math.round(ts * 0.5), PX = Math.max(1, Math.round(ts / 46));
+    const W = App.w, H = App.h, ts = Math.round(Math.max(52, Math.min(110, Math.min(W, H) / 7.2))), lift = Math.round(ts * 0.5), PX = Math.max(2, Math.round(ts / 32));
     const c = scene(W, H), S = App.S, T = THEMES[fl.theme] || THEMES.cave;
     const ox = Math.round(W / 2 - (px + 0.5) * ts), oy = Math.round(H / 2 - (py + 0.5) * ts + lift * 0.5);
     c.fillStyle = '#040308'; c.fillRect(0, 0, W, H);
@@ -117,7 +118,7 @@ App.screens.dungeon = {
     for (const ch of fl.chests) marks.push({ y: ch.y, draw: () => chest(c, ox + ch.x * ts, oy + ch.y * ts, ts, !!S.done['chest:' + ch.key]) });
     for (const s of syms) { const fm = DB.families[s.fam]; marks.push({ y: s.y + 0.5, draw: () => { const X = ox + (s.x + 0.5) * ts, Y = oy + (s.y + 0.9) * ts; if (s.stun > 0) c.globalAlpha = 0.45; shadow(c, X, Y, ts * 0.4, ts * 0.12); monsterSprite(c, fm.art, fm.hue, X, Y, ts * 0.85 / 90, App.time + s.id, { px: z }); c.globalAlpha = 1; } }); }
     marks.push({ y: py + 0.6, draw: () => { const X = ox + (px + 0.5) * ts, Y = oy + (py + 0.92) * ts; shadow(c, X, Y, ts * 0.32, ts * 0.1);
-      stamp(c, X, Y - (anim > 0 ? Math.round(Math.sin(anim * Math.PI) * 2 * z) : 0), z, HERO_BOX.w, HERO_BOX.h, HERO_BOX.ox, HERO_BOX.oy, (tc) => heroSprite(tc, S.party[0].id, anim > 0 ? 'step' : 'idle', App.time, weaponsOf(S.party[0])[0].type), { flip: face > 0 }); } });
+      drawChibi(c, S.party[0].id, X, Y - (anim > 0 ? Math.round(Math.sin(anim * Math.PI) * z) : 0), z, anim > 0 ? 'step' : 'idle', Math.floor(App.time * 2) % 2, weaponsOf(S.party[0])[0].type, { flip: face > 0 }); } });
     // walls are raised blocks: draw row by row so a block in front covers what stands behind it
     marks.sort((a, b) => a.y - b.y); let mi = 0;
     for (let y = y0; y < y1; y++) {

@@ -4,7 +4,7 @@ import { DB } from '../data/index.js';
 import { toSave, fromSave, reveal as revealPlace, rest } from '../engine/state.js';
 import { runEvent, arrivalEvents } from '../engine/events.js';
 import { L, t, getLang } from './i18n.js';
-import { portraitHD as portrait } from './hd.js';
+import { portraitChibi as portrait } from './chibi.js';
 
 export const $ = (s) => document.querySelector(s);
 export function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }

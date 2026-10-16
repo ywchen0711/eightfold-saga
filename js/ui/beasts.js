@@ -11,11 +11,13 @@ function hsl(h, s, l, a = 255) {
 }
 // darkest -> lightest; shadows lean towards blue-violet, highlights towards gold
 export function ramp(h, s, l, a = 255) {
-  return [hsl(h + 24, s * 0.9, l * 0.32, a), hsl(h + 12, s, l * 0.62, a), hsl(h, s, l, a), hsl(h - 10, s * 0.9, Math.min(90, l * 1.32), a), hsl(h - 22, s * 0.65, Math.min(95, l * 1.65 + 8), a)];
+  s = Math.min(100, s * 1.25); l = Math.min(70, l * 1.08);
+  return [hsl(h + 20, s * 0.9, l * 0.42, a), hsl(h + 10, s, l * 0.72, a), hsl(h, s, l, a), hsl(h - 8, s * 0.95, Math.min(88, l * 1.3), a), hsl(h - 18, s * 0.6, Math.min(96, l * 1.7 + 10), a)];
 }
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const L = (() => { const v = [-0.55, -0.68, 0.48], m = Math.hypot(...v); return v.map((x) => x / m); })();
-const pick = (R, v, x, y) => R[Math.max(0, Math.min(R.length - 1, Math.round(v * (R.length - 1) + (BAYER[(y & 3) * 4 + (x & 3)] / 16 - 0.5) * 0.45)))];
+// flat tones like Pixel Hoops: lit, base, shadow (no dithering)
+const pick = (R, v) => (v > 0.8 ? R[3] : v > 0.42 ? R[2] : v > 0.2 ? R[1] : R[0]);
 
 // ---------------------------------------------------------------- a pixel buffer with 3D-ish primitives
 class Buf {
@@ -29,7 +31,7 @@ class Buf {
       const dx = (x + 0.5 - X) / RX, dy = (y + 0.5 - Y) / RY, d = dx * dx + dy * dy; if (d > 1) continue;
       if (o.mask && !o.mask((x - this.ox) / this.u, (y - this.oy) / this.u)) continue;
       const nz = Math.sqrt(1 - d), lit = Math.max(0, dx * L[0] + dy * L[1] + nz * L[2]), v = amb + (1 - amb) * lit * (o.k ?? 1);
-      this.set(x, y, lit > 0.97 && !o.matte ? R[R.length - 1] : pick(R, Math.min(1, v), x, y));
+      this.set(x, y, lit > 0.985 && !o.matte ? R[R.length - 1] : pick(R, Math.min(1, v)));
     }
   }
   // a limb: a tapered capsule from (x1, y1) radius r1 to (x2, y2) radius r2, shaded like a cylinder
@@ -40,7 +42,7 @@ class Buf {
       const px = x + 0.5, py = y + 0.5, t = Math.max(0, Math.min(1, ((px - A[0]) * vx + (py - A[1]) * vy) / len2));
       const qx = A[0] + vx * t, qy = A[1] + vy * t, r = R1 + (R2 - R1) * t, dx = (px - qx) / r, dy = (py - qy) / r, d = dx * dx + dy * dy; if (d > 1) continue;
       const nz = Math.sqrt(1 - d), v = amb + (1 - amb) * Math.max(0, dx * L[0] + dy * L[1] + nz * L[2]);
-      this.set(x, y, pick(R, Math.min(1, v), x, y));
+      this.set(x, y, pick(R, Math.min(1, v)));
     }
   }
   // a flat shape (wings, blades, cloth): ramp step `i` at the top fading one step darker at the bottom, lit top edge
@@ -51,7 +53,7 @@ class Buf {
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       if (!inside(x + 0.5, y + 0.5)) continue;
       const g = (y - y0) / Math.max(1, y1 - y0), edge = !inside(x - 0.5, y - 0.5);
-      const v = Math.max(0, Math.min(R.length - 1, i + (edge && !o.noEdge ? 1 : 0) - (o.fade ?? 1) * g + (BAYER[(y & 3) * 4 + (x & 3)] / 16 - 0.5) * 0.9));
+      const v = Math.max(0, Math.min(R.length - 1, i + (edge && !o.noEdge ? 1 : 0) - (g > 0.6 ? 1 : 0)));
       this.set(x, y, R[Math.round(v)]);
     }
   }
@@ -59,7 +61,11 @@ class Buf {
     for (let k = 0; k <= n; k++) { const x = a[0] + (b[0] - a[0]) * k / n, y = a[1] + (b[1] - a[1]) * k / n; for (let q = 0; q < w; q++) this.set(x + (q % 2), y + (q >> 1), col); } }
   dot(x, y, col) { this.set(this.X(x), this.Y(y), col); }
   // glowing eyes: bright pixels, remembered so the scene can add bloom
-  eye(x, y, col, w = 2) { const X = this.X(x), Y = this.Y(y), s = Math.max(1, Math.round(w * this.u * 0.6)); for (let a = 0; a < s; a++) for (let b = 0; b < Math.max(1, s >> 1); b++) this.set(X + a, Y + b, col); this.eyes.push([X + s / 2, Y]); }
+  eye(x, y, col, w = 2) {
+    const X = Math.round(this.X(x)), Y = Math.round(this.Y(y));
+    if (this.cute) { const s = Math.max(2, Math.round(w * this.u * 0.7)); for (let a = 0; a < s; a++) for (let b = 0; b < s; b++) this.set(X + a, Y + b, 0xff201418); this.set(X, Y, 0xffffffff); return; }
+    const s = Math.max(1, Math.round(w * this.u * 0.6)); for (let a = 0; a < s; a++) for (let b = 0; b < Math.max(1, s >> 1); b++) this.set(X + a, Y + b, col); this.eyes.push([X + s / 2, Y]);
+  }
 }
 function blend(dst, src) { const a = (src >>> 24) / 255, b = 1 - a; const ch = (v, s) => ((v >>> s) & 255); return (255 << 24) | (Math.round(ch(src, 16) * a + ch(dst, 16) * b) << 16) | (Math.round(ch(src, 8) * a + ch(dst, 8) * b) << 8) | Math.round(ch(src, 0) * a + ch(dst, 0) * b); }
 
@@ -255,7 +261,7 @@ export function beast(art, hue, u, frame) {
   const key = `${art}:${hue}:${u}:${frame}`; let s = cache.get(key); if (s) return s;
   if (cache.size > 300) cache.clear();
   const W = Math.ceil(190 * u) + 6, H = Math.ceil(140 * u) + 6, ox = Math.round(W / 2), oy = H - 3;
-  const B = new Buf(W, H, u, ox, oy);
+  const B = new Buf(W, H, u, ox, oy); B.cute = !['undead', 'ghost', 'construct', 'god', 'elemental'].includes(art);
   (F[art] || F.ooze)(B, hue, frame);
   // a dark outline around the sprite
   const out = new Uint32Array(B.d), OL = 0xff180c10;

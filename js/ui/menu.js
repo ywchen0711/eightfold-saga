@@ -3,7 +3,7 @@ import { DB } from '../data/index.js';
 import { derived, equip, SLOTS, STATS, count, itemDef, take, weaponsOf } from '../engine/state.js';
 import { App, $, el, btn, esc, toast, itemName } from './app.js';
 import { L, t, getLang, setLang } from './i18n.js';
-import { portraitHD as portrait } from './hd.js';
+import { portraitChibi as portrait } from './chibi.js';
 import { desc, kindName } from './places.js';
 
 let tab = 'status', from = 'town', who = 0, slotSel = null;

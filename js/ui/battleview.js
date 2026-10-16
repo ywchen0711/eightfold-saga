@@ -6,7 +6,8 @@ import { rng, weaponsOf, techsFor, derived } from '../engine/state.js';
 import { startBattle, resolveTurn, autoCommand, finishBattle, unitOf } from '../engine/battle.js';
 import { App, $, el, btn, esc, toast, itemName } from './app.js';
 import { L, t } from './i18n.js';
-import { diorama, particles, stamp, shadow, heroSprite, HERO_BOX, monsterSprite, bloom, lightOf } from './hd.js';
+import { diorama, particles, shadow, monsterSprite, bloom, lightOf } from './hd.js';
+import { drawChibi } from './chibi.js';
 
 let B = null, R = null, done = null, cmds = {}, who = 0, fx = [], sfx = [], msg = '', flash = {}, shake = 0, theme = 'cave', auto = false, glim = null, G = null;
 const living = (list) => list.filter((u) => !u.ko && u.hp > 0);
@@ -18,7 +19,7 @@ const sceneH = () => (narrow() ? Math.round(App.h * 0.44) : App.h);
 // where everyone stands (screen pixels, feet positions) and how big the pixels are
 function layout() {
   const W = App.w, H = sceneH(), wide = !narrow();
-  const PX = Math.max(1, Math.round(H * (wide ? 0.2 : 0.21) / 68)), yA = H * (wide ? 0.53 : 0.66), yB = H * (wide ? 0.665 : 0.92);
+  const PX = Math.max(2, Math.round(H * (wide ? 0.17 : 0.2) / 40)), yA = H * (wide ? 0.53 : 0.66), yB = H * (wide ? 0.665 : 0.92);
   G = { s: 1, W, H, PX, yA, yB };
   const n = B.enemies.length, unit = H * 0.24 / 90, left = W * 0.05, right = W * (wide ? 0.55 : 0.6);
   B.enemies.forEach((e, i) => {
@@ -29,7 +30,7 @@ function layout() {
   if (B.enemies[0] && B.enemies[0].boss) B.enemies.slice(1).forEach((e, i) => { e.vx = left + (right - left) * (i % 2 ? 0.92 : 0.08); e.vy = i < 2 ? yB : yA; e.k = unit * e.size * 0.8; });
   // the party: a slanted column from front-left to back-right (the SaGa formation)
   const m = B.party.length;
-  B.party.forEach((u, i) => { const f = m > 1 ? i / (m - 1) : 0.5; u.vx = W * (wide ? 0.66 : 0.66) + W * (wide ? 0.2 : 0.26) * f + (i % 2 ? W * 0.02 : 0); u.vy = yA - H * 0.03 + (yB - yA + H * 0.05) * f; });
+  B.party.forEach((u, i) => { const f = m > 1 ? i / (m - 1) : 0.5; u.vx = W * (wide ? 0.62 : 0.6) + W * (wide ? 0.27 : 0.32) * f + (i % 2 ? W * 0.025 : 0); u.vy = yA - H * 0.03 + (yB - yA + H * 0.05) * f; });
 }
 // ---------------------------------------------------------------- drawing
 function draw() {
@@ -54,7 +55,7 @@ function draw() {
       shadow(c, u.vx + ox, u.vy + 2, 13 * G.PX, 4 * G.PX);
       if (who === u.i && !busy && !B.over) bloom(c, u.vx, u.vy - 30 * G.PX, 46 * G.PX, 'rgba(255,230,160,.5)', 0.35 + 0.15 * Math.sin(T * 4));
       if (flash['p' + u.i] > 0 && Math.floor(T * 30) % 2) c.globalAlpha = 0.5;
-      stamp(c, u.vx + ox, u.vy + oy, G.PX, HERO_BOX.w, HERO_BOX.h, HERO_BOX.ox, HERO_BOX.oy, (tc) => heroSprite(tc, u.c.id, pose, T + u.i, wtype, a ? a.t / a.dur : 0));
+      drawChibi(c, u.c.id, u.vx + ox, u.vy + oy, G.PX, pose, pose === 'atk' ? (a && a.t / a.dur > 0.45 ? 1 : 0) : Math.floor(T * 2 + u.i) % 2, wtype);
       c.globalAlpha = 1;
     }
   }

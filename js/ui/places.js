@@ -5,7 +5,8 @@ import { heroesHere } from '../engine/events.js';
 import { App, $, el, btn, esc, toast, itemName, event, arrive, choice } from './app.js';
 import { L, t } from './i18n.js';
 import { worldMap } from './art.js';
-import { portraitHD as portrait, townScene, particles, themeParticles } from './hd.js';
+import { townScene, particles, themeParticles } from './hd.js';
+import { portraitChibi as portrait } from './chibi.js';
 
 const town = () => DB.locations[App.S.loc];
 function frame(title, body, onBack) {
