@@ -4,6 +4,7 @@
 import { DB } from '../data/index.js';
 import { THEMES } from './art.js';
 import { beast } from './beasts.js';
+import { dqSprite } from './dqmon.js';
 
 // ---------------------------------------------------------------- colour helpers
 const rgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -157,6 +158,19 @@ function heroWeapon(c, type) {
 
 // ---------------------------------------------------------------- monsters: the vector designs, shaded, outlined and pixelated
 export function monsterSprite(c, art, hue, x, y, k, t, o = {}) {
+  // hand-drawn families (dqmon.js): scaled so a normal monster stands about as tall as before, gently bobbing
+  const dq = dqSprite(art, hue);
+  if (dq) {
+    const p0 = o.px || 2, sc = Math.max(p0, Math.round(Math.min(p0 * 2.2, k * 52 / dq.h))), bob = Math.floor((t || 0) * 2) % 2 ? Math.round(sc * 0.6) : 0;
+    const w = dq.w * sc, h = dq.h * sc, dx = Math.round(x - w / 2), dy = Math.round(y - h + sc + bob);
+    c.save(); c.imageSmoothingEnabled = false;
+    if (o.flip) { c.translate(x, 0); c.scale(-1, 1); c.translate(-x, 0); }
+    c.drawImage(dq.cv, dx, dy, w, h);
+    if (o.flash) { c.globalAlpha = 0.85; c.drawImage(dq.white, dx, dy, w, h); }
+    c.restore();
+    if (!o.noGlow) for (const [ex, ey] of dq.eyes) bloom(c, dx + ex * sc, dy + ey * sc, sc * 3, 'rgba(255,214,140,.9)', 0.4);
+    return;
+  }
   // pixel-art sprites (beasts.js): k = screen pixels per design unit, px = screen pixels per sprite pixel
   const px = o.px || 2, frame = Math.floor((t || 0) * 1.6) % 2, s = beast(art, hue, k / px, frame);
   c.save(); c.imageSmoothingEnabled = false;
