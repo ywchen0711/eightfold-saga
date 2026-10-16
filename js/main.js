@@ -3,7 +3,8 @@ import { DB } from './data/index.js';
 import { newGame, rest, derived, fromSave } from './engine/state.js';
 import { App, $, el, btn, esc, resize, advanceDialog, event, toast } from './ui/app.js';
 import { L, t, getLang, setLang } from './ui/i18n.js';
-import { portrait, H } from './ui/art.js';
+import { H } from './ui/art.js';
+import { portraitHD as portrait, diorama, particles, bloom } from './ui/hd.js';
 import './ui/battleview.js';
 import './ui/dungeonview.js';
 import './ui/places.js';
@@ -30,9 +31,10 @@ App.screens.title = {
     m.appendChild(btn(`🌐 ${getLang() === 'zh' ? 'English' : '中文'}`, () => { setLang(getLang() === 'zh' ? 'en' : 'zh'); App.applyLang(); App.go('title'); }, 'small'));
     box.appendChild(m); p.appendChild(box);
   },
-  draw() { const c = App.cx, w = App.w, h = App.h, g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#060818'); g.addColorStop(1, '#2a1838'); c.fillStyle = g; c.fillRect(0, 0, w, h);
-    for (let i = 0; i < 120; i++) { c.fillStyle = `rgba(255,255,255,${0.3 + 0.4 * Math.sin(App.time * 1.5 + i)})`; c.fillRect((i * 173) % w, (i * 89) % h, 1.5, 1.5); }
-    for (let i = 0; i < 8; i++) { const a = App.time * 0.15 + i / 8 * Math.PI * 2, r = Math.min(w, h) * 0.32; c.fillStyle = H(i * 45, 80, 70); c.beginPath(); c.arc(w / 2 + Math.cos(a) * r, h * 0.42 + Math.sin(a) * r * 0.5, 4, 0, 7); c.fill(); } },
+  draw() { const c = App.cx, w = App.w, h = App.h;
+    c.drawImage(diorama('castle', Math.round(w), Math.round(h), 0.62), 0, 0); particles(c, 'tower', w, h, App.time, 60);
+    // the eight stars of the heroes circling the title
+    for (let i = 0; i < 8; i++) { const a = App.time * 0.12 + i / 8 * Math.PI * 2, r = Math.min(w, h) * 0.34, x = w / 2 + Math.cos(a) * r, y = h * 0.36 + Math.sin(a) * r * 0.35; bloom(c, x, y, 26, H(i * 45, 70, 70, 0.9), 0.8); c.fillStyle = '#fff'; c.beginPath(); c.arc(x, y, 1.8, 0, 7); c.fill(); } },
 };
 // ---------------------------------------------------------------- choosing a hero
 let pickH = null;
@@ -121,6 +123,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000); last = now; App.time += dt;
   if (App.S && !['title', 'choose'].includes(App.screen)) App.S.playTime += dt;
+  if (App.cv.clientWidth && (Math.abs(App.cv.clientWidth - App.w) > 1 || Math.abs(App.cv.clientHeight - App.h) > 1)) { resize(); const r = App.screens[App.screen]; if (r && r.resize) r.resize(); }
   const s = App.screens[App.screen]; if (!s) return;
   if (s.tick) s.tick(dt, input);
   if (s.draw) s.draw();

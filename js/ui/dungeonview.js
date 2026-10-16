@@ -1,15 +1,15 @@
 // The dungeon screen: walk a floor (keys, d-pad or swipe), open chests, take the stairs, touch monster symbols to
 // fight them, and challenge the boss at the altar on the last floor.
 import { DB } from '../data/index.js';
-import { rng, give } from '../engine/state.js';
-import { makeFloor, spawnSymbols, moveSymbols, open } from '../engine/dungeon.js';
+import { rng, give, weaponsOf } from '../engine/state.js';
+import { makeFloor, spawnSymbols, moveSymbols, open, WALL } from '../engine/dungeon.js';
 import { encounter } from '../engine/battle.js';
 import { App, $, el, btn, esc, toast, itemName, choice, bossCleared, event } from './app.js';
 import { L, t } from './i18n.js';
-import { tile, hero, monster } from './art.js';
-import { beginLow, endLow, outlined } from './pixel.js';
+import { THEMES } from './art.js';
+import { stamp, shadow, heroSprite, HERO_BOX, monsterSprite, particles, bloom, lightOf, mix } from './hd.js';
 
-let fl = null, syms = [], R = rng(1), px = 0, py = 0, dir = 0, anim = 0, cool = 0, symT = 0, safe = 0, inBattle = false, moving = false;
+let fl = null, syms = [], R = rng(1), px = 0, py = 0, dir = 0, face = -1, anim = 0, cool = 0, symT = 0, safe = 0, inBattle = false, moving = false;
 const D = () => DB.dungeons[App.S.dungeon.id];
 function loadFloor(f, at) {
   const S = App.S; fl = makeFloor(S.dungeon.id, f); S.dungeon.floor = f;
@@ -27,7 +27,7 @@ function hud() {
 }
 async function step(dx, dy) {
   if (App.busy || inBattle || moving) return;
-  dir = dy > 0 ? 0 : dx < 0 ? 1 : dx > 0 ? 2 : 3;
+  dir = dy > 0 ? 0 : dx < 0 ? 1 : dx > 0 ? 2 : 3; if (dx) face = dx;
   const nx = px + dx, ny = py + dy; if (!open(fl, nx, ny)) return;
   px = nx; py = ny; anim = 1; App.S.dungeon.x = px; App.S.dungeon.y = py;
   moving = true;
@@ -95,32 +95,117 @@ App.screens.dungeon = {
     symT += dt;
     if (symT > 0.36) { symT = 0; const hit = moveSymbols(fl, syms, px, py, R); if (hit && safe <= 0 && !moving) fight(hit); }
   },
-  // drawn in 16-bit style: 24-pixel tiles in a small buffer, scaled up with hard edges
+  // HD-2D: raised stone blocks and textured floors at screen resolution, detailed pixel sprites, torchlight,
+  // drifting dust and a tilt-shift blur at the top and bottom of the view
   draw() {
     if (!fl) return;
-    const sts = Math.round(Math.max(28, Math.min(58, Math.min(App.w, App.h) / 10.5))), T = 24;
-    App.cx.fillStyle = '#05050a'; App.cx.fillRect(0, 0, App.w, App.h);
-    const f = beginLow(App.h * T / sts), c = f.c, w = f.W, h = f.H;
-    const ox = Math.round(w / 2 - (px + 0.5) * T), oy = Math.round(h / 2 - (py + 0.5) * T);
-    c.fillStyle = '#05050a'; c.fillRect(0, 0, w, h);
-    const x0 = Math.max(0, Math.floor(-ox / T)), x1 = Math.min(fl.w, Math.ceil((w - ox) / T)), y0 = Math.max(0, Math.floor(-oy / T)), y1 = Math.min(fl.h, Math.ceil((h - oy) / T));
-    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) tile(c, fl.theme, fl.tiles[y * fl.w + x], ox + x * T, oy + y * T, T, (x * 31 + y * 17) >>> 0);
-    const S = App.S, at = (x, y) => [ox + x * T, oy + y * T];
-    // the way in, stairs, the altar, chests
-    { const [x, y] = at(fl.start.x, fl.start.y); if (S.dungeon.floor === 1) { box(c, x + 5, y + 2, 14, 20, '#4a2a14'); box(c, x + 7, y + 4, 10, 18, '#8a5a2a'); box(c, x + 14, y + 13, 2, 2, '#ffd060'); } else stairs(c, x, y, true); }
-    { const [x, y] = at(fl.end.x, fl.end.y); if (fl.end.kind === 'down') stairs(c, x, y, false);
-      else { box(c, x + 3, y + 10, 18, 12, '#5a5468'); box(c, x + 5, y + 8, 14, 3, '#8a84a0'); const lit = S.cleared[fl.id]; box(c, x + 9, y + 2 + (Math.floor(App.time * 3) % 2), 6, 6, lit ? '#9affd8' : '#ff3a4a'); } }
-    for (const ch of fl.chests) { const [x, y] = at(ch.x, ch.y), opened = S.done['chest:' + ch.key];
-      box(c, x + 4, y + 9, 16, 11, '#6a3a14'); box(c, x + 4, y + (opened ? 5 : 8), 16, opened ? 3 : 4, opened ? '#3a2008' : '#8a5a24'); box(c, x + 4, y + 13, 16, 2, '#d8b040'); if (!opened) box(c, x + 11, y + 12, 2, 4, '#ffe080'); }
-    for (const s of syms) { const fm = DB.families[s.fam], [x, y] = at(s.x, s.y), k = 0.2; if (s.stun > 0) c.globalAlpha = 0.45;
-      outlined(c, x - 2, y - 6, 28, 30, (tc) => monster(tc, fm.art, fm.hue, 14, 28, k, App.time + s.id)); c.globalAlpha = 1; }
-    { const [x, y] = at(px, py); outlined(c, x - 2, y - 10, 28, 34, (tc) => hero(tc, S.party[0].id, 14, 31, 0.85, dir, anim)); }
-    // the dungeon is dark beyond your torchlight
-    const g = c.createRadialGradient(w / 2, h / 2, T * 3, w / 2, h / 2, Math.max(w, h) * 0.62); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.78)'); c.fillStyle = g; c.fillRect(0, 0, w, h);
-    endLow(f);
+    const W = App.w, H = App.h, ts = Math.round(Math.max(52, Math.min(110, Math.min(W, H) / 7.2))), lift = Math.round(ts * 0.5), PX = Math.max(1, Math.round(ts / 46));
+    const c = scene(W, H), S = App.S, T = THEMES[fl.theme] || THEMES.cave;
+    const ox = Math.round(W / 2 - (px + 0.5) * ts), oy = Math.round(H / 2 - (py + 0.5) * ts + lift * 0.5);
+    c.fillStyle = '#040308'; c.fillRect(0, 0, W, H);
+    const x0 = Math.max(0, Math.floor(-ox / ts) - 1), x1 = Math.min(fl.w, Math.ceil((W - ox) / ts) + 1), y0 = Math.max(0, Math.floor(-oy / ts) - 1), y1 = Math.min(fl.h, Math.ceil((H - oy) / ts) + 2);
+    const floorTex = texture(fl.theme, 'floor', ts), wallTex = texture(fl.theme, 'wall', ts), topTex = texture(fl.theme, 'top', ts);
+    const isWall = (x, y) => x < 0 || y < 0 || x >= fl.w || y >= fl.h || fl.tiles[y * fl.w + x] === WALL;
+    // floors first
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (!isWall(x, y)) c.drawImage(floorTex, ((x * 7 + y * 13) % 4) * ts, 0, ts, ts, ox + x * ts, oy + y * ts, ts, ts);
+    // soft shadows the walls cast onto the floor below them
+    c.fillStyle = 'rgba(0,0,0,.35)'; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (isWall(x, y) && !isWall(x, y + 1)) c.fillRect(ox + x * ts, oy + (y + 1) * ts, ts, ts * 0.22);
+    // things on the floor
+    const marks = [], z = PX;
+    marks.push({ y: fl.start.y, draw: () => { const X = ox + fl.start.x * ts, Y = oy + fl.start.y * ts; if (S.dungeon.floor === 1) door(c, X, Y, ts); else stairs(c, X, Y, ts, true); } });
+    marks.push({ y: fl.end.y, draw: () => { const X = ox + fl.end.x * ts, Y = oy + fl.end.y * ts; if (fl.end.kind === 'down') stairs(c, X, Y, ts, false); else altar(c, X, Y, ts, !!S.cleared[fl.id]); } });
+    for (const ch of fl.chests) marks.push({ y: ch.y, draw: () => chest(c, ox + ch.x * ts, oy + ch.y * ts, ts, !!S.done['chest:' + ch.key]) });
+    for (const s of syms) { const fm = DB.families[s.fam]; marks.push({ y: s.y + 0.5, draw: () => { const X = ox + (s.x + 0.5) * ts, Y = oy + (s.y + 0.9) * ts; if (s.stun > 0) c.globalAlpha = 0.45; shadow(c, X, Y, ts * 0.4, ts * 0.12); monsterSprite(c, fm.art, fm.hue, X, Y, ts * 0.85 / 90, App.time + s.id, { px: z }); c.globalAlpha = 1; } }); }
+    marks.push({ y: py + 0.6, draw: () => { const X = ox + (px + 0.5) * ts, Y = oy + (py + 0.92) * ts; shadow(c, X, Y, ts * 0.32, ts * 0.1);
+      stamp(c, X, Y - (anim > 0 ? Math.round(Math.sin(anim * Math.PI) * 2 * z) : 0), z, HERO_BOX.w, HERO_BOX.h, HERO_BOX.ox, HERO_BOX.oy, (tc) => heroSprite(tc, S.party[0].id, anim > 0 ? 'step' : 'idle', App.time, weaponsOf(S.party[0])[0].type), { flip: face > 0 }); } });
+    // walls are raised blocks: draw row by row so a block in front covers what stands behind it
+    marks.sort((a, b) => a.y - b.y); let mi = 0;
+    for (let y = y0; y < y1; y++) {
+      while (mi < marks.length && marks[mi].y < y) marks[mi++].draw();
+      for (let x = x0; x < x1; x++) if (isWall(x, y)) {
+        const X = ox + x * ts, Y = oy + y * ts;
+        if (!isWall(x, y + 1)) { // a visible front face
+          c.drawImage(wallTex, 0, 0, ts, ts, X, Y + ts - lift, ts, lift);
+          const g = c.createLinearGradient(0, Y + ts - lift, 0, Y + ts); g.addColorStop(0, 'rgba(0,0,0,.05)'); g.addColorStop(1, 'rgba(0,0,0,.5)'); c.fillStyle = g; c.fillRect(X, Y + ts - lift, ts, lift);
+        }
+        // the top face: dark capstone with a lit rim, so walls read clearly against the floor
+        c.drawImage(topTex, ((x * 5 + y * 3) % 3) * ts, 0, ts, ts, X, Y - lift, ts, ts);
+        c.fillStyle = 'rgba(255,240,210,.12)'; c.fillRect(X, Y - lift, ts, 1);
+        if (!isWall(x - 1, y)) { c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(X, Y - lift, 2, ts); }
+        if (!isWall(x + 1, y)) { c.fillStyle = 'rgba(0,0,0,.4)'; c.fillRect(X + ts - 2, Y - lift, 2, ts); }
+      }
+    }
+    while (mi < marks.length) marks[mi++].draw();
+    // torchlight around the hero; glows on chests and the altar
+    const hx = ox + (px + 0.5) * ts, hy = oy + (py + 0.5) * ts;
+    light(c, W, H, hx, hy, ts * (4.2 + Math.sin(App.time * 7) * 0.08), fl.theme);
+    for (const ch of fl.chests) if (!S.done['chest:' + ch.key]) bloom(c, ox + (ch.x + 0.5) * ts, oy + (ch.y + 0.5) * ts, ts * 0.9, 'rgba(255,210,120,.8)', 0.35 + 0.15 * Math.sin(App.time * 3 + ch.x));
+    if (fl.end.kind === 'altar') bloom(c, ox + (fl.end.x + 0.5) * ts, oy + (fl.end.y + 0.3) * ts, ts * 1.6, S.cleared[fl.id] ? 'rgba(140,255,220,.8)' : 'rgba(255,60,80,.8)', 0.45);
+    particles(c, fl.theme, W, H, App.time, 30);
+    present(W, H);
   },
   key(k) { if (k === 'menu') App.go('menu', { from: 'dungeon' }); },
 };
-function box(c, x, y, w, h, col) { c.fillStyle = col; c.fillRect(x, y, w, h); }
-function stairs(c, x, y, up) { for (let i = 0; i < 4; i++) { box(c, x + 3 + i * 2, y + 4 + i * 4, 18 - i * 4, 4, i % 2 ? '#6a6478' : '#8a84a0'); } box(c, x + 9, y + (up ? 1 : 19), 6, 3, up ? '#9affd8' : '#ffd060'); }
+// ---------------------------------------------------------------- drawing helpers
+// the frame is drawn off-screen first, so the top and bottom can be blurred (tilt-shift depth of field)
+const scn = document.createElement('canvas'), sx = scn.getContext('2d');
+function scene(W, H) { const d = App.dpr; if (scn.width !== Math.round(W * d) || scn.height !== Math.round(H * d)) { scn.width = Math.round(W * d); scn.height = Math.round(H * d); } sx.setTransform(d, 0, 0, d, 0, 0); return sx; }
+function present(W, H) {
+  const c = App.cx;
+  c.drawImage(scn, 0, 0, W, H);
+  const band = H * 0.2, blur = Math.max(2, Math.round(Math.min(W, H) / 220));
+  for (const [y0, dir] of [[0, 1], [H - band, -1]]) {
+    c.save(); c.beginPath(); c.rect(0, y0, W, band); c.clip(); c.filter = `blur(${blur}px)`; c.globalAlpha = 0.9; c.drawImage(scn, 0, 0, W, H); c.restore();
+    const g = c.createLinearGradient(0, y0, 0, y0 + band); g.addColorStop(dir > 0 ? 0 : 1, 'rgba(4,3,8,.25)'); g.addColorStop(dir > 0 ? 1 : 0, 'rgba(4,3,8,0)'); c.fillStyle = g; c.fillRect(0, y0, W, band);
+  }
+}
+// tiled textures per theme (floor: 4 variants side by side; wall: one), drawn once
+const tex = new Map();
+function texture(theme, kind, ts) {
+  const key = `${theme}:${kind}:${ts}`; if (tex.has(key)) return tex.get(key);
+  const T = THEMES[theme] || THEMES.cave, cv = document.createElement('canvas'), n = kind === 'floor' ? 4 : kind === 'top' ? 3 : 1; cv.width = ts * n; cv.height = ts; const c = cv.getContext('2d');
+  const r = (i) => ((Math.sin(i * 91.7 + ts) * 43758.5) % 1 + 1) % 1;
+  for (let v = 0; v < n; v++) {
+    const X = v * ts;
+    if (kind === 'floor') {
+      c.fillStyle = T.floor; c.fillRect(X, 0, ts, ts);
+      // flagstones with worn edges
+      const cells = theme === 'forest' || theme === 'swamp' || theme === 'desert' || theme === 'sea' ? 0 : 2;
+      for (let i = 0; i < cells; i++) for (let j = 0; j < cells; j++) { const s = ts / cells; c.fillStyle = mix(T.floor, i + j + v & 1 ? '#000000' : '#ffffff', 0.05 + r(v * 9 + i * 3 + j) * 0.05); c.fillRect(X + i * s + 1, j * s + 1, s - 2, s - 2); c.fillStyle = 'rgba(0,0,0,.22)'; c.fillRect(X + i * s, j * s + s - 1, s, 1); c.fillRect(X + i * s + s - 1, j * s, 1, s); }
+      for (let k = 0; k < 18; k++) { c.fillStyle = `rgba(${r(k + v * 40) > 0.5 ? '255,240,220' : '0,0,0'},${0.05 + r(k + 7 + v * 40) * 0.08})`; c.fillRect(X + r(k * 3 + v) * ts, r(k * 5 + v) * ts, 1 + r(k + v) * 3, 1 + r(k * 2 + v) * 2); }
+      if (theme === 'forest' || theme === 'swamp') for (let k = 0; k < 6; k++) { c.fillStyle = mix('#4a7a3a', T.floor, 0.3); c.fillRect(X + r(k * 7 + v * 3) * ts, r(k * 11 + v) * ts, 1, 3 + r(k) * 3); }
+    } else if (kind === 'top') {
+      // the capstones on top of walls: irregular dark stones with lit edges and a little moss or dust
+      c.fillStyle = mix(T.wall, '#000000', 0.45); c.fillRect(X, 0, ts, ts);
+      const k = 3, s = ts / k;
+      for (let i = 0; i < k; i++) for (let j = 0; j < k; j++) { const jx = (r(v * 31 + i * 7 + j) - 0.5) * s * 0.3, jy = (r(v * 17 + i + j * 5) - 0.5) * s * 0.3;
+        c.fillStyle = mix(mix(T.wall, T.top, 0.3), '#000000', 0.1 + r(v + i * 3 + j * 9) * 0.25); c.fillRect(X + i * s + 2 + jx * 0.3, j * s + 2 + jy * 0.3, s - 4, s - 4);
+        c.fillStyle = 'rgba(255,240,210,.1)'; c.fillRect(X + i * s + 2 + jx * 0.3, j * s + 2 + jy * 0.3, s - 4, 1); }
+      if (['forest', 'swamp', 'ruins', 'tomb'].includes(theme)) for (let m = 0; m < 5; m++) { c.fillStyle = `rgba(80,120,60,${0.25 + r(m + v * 9) * 0.25})`; c.fillRect(X + r(m * 3 + v) * ts, r(m * 7 + v) * ts, 3 + r(m) * 6, 2 + r(m * 2) * 3); }
+    } else {
+      const g = c.createLinearGradient(0, 0, 0, ts); g.addColorStop(0, mix(T.wall, '#ffffff', 0.08)); g.addColorStop(1, mix(T.wall, '#000000', 0.25)); c.fillStyle = g; c.fillRect(0, 0, ts, ts);
+      c.fillStyle = 'rgba(0,0,0,.28)'; const bh = ts / 4;
+      for (let row = 0; row < 4; row++) { c.fillRect(0, row * bh, ts, 1); for (let k = (row % 2) * ts / 4; k < ts; k += ts / 2) c.fillRect(k, row * bh, 1, bh); }
+      c.fillStyle = 'rgba(255,240,210,.06)'; for (let row = 0; row < 4; row++) c.fillRect(0, row * bh + 1, ts, 1);
+    }
+  }
+  tex.set(key, cv); return cv;
+}
+// darkness everywhere but the circle of torchlight
+const lc = document.createElement('canvas'), lx = lc.getContext('2d');
+function light(c, W, H, x, y, r, theme) {
+  if (lc.width !== Math.round(W) || lc.height !== Math.round(H)) { lc.width = Math.round(W); lc.height = Math.round(H); }
+  lx.globalCompositeOperation = 'source-over'; lx.fillStyle = theme === 'sky' || theme === 'desert' ? 'rgba(10,10,30,.45)' : 'rgba(2,2,8,.86)'; lx.clearRect(0, 0, W, H); lx.fillRect(0, 0, W, H);
+  lx.globalCompositeOperation = 'destination-out'; const g = lx.createRadialGradient(x, y, r * 0.15, x, y, r); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.55, 'rgba(0,0,0,.75)'); g.addColorStop(1, 'rgba(0,0,0,0)'); lx.fillStyle = g; lx.fillRect(0, 0, W, H);
+  c.drawImage(lc, 0, 0, W, H);
+  c.save(); c.globalCompositeOperation = 'soft-light'; const w = c.createRadialGradient(x, y, 0, x, y, r * 0.9); w.addColorStop(0, lightOf(theme) + 'aa'); w.addColorStop(1, lightOf(theme) + '00'); c.fillStyle = w; c.fillRect(x - r, y - r, r * 2, r * 2); c.restore();
+}
+function door(c, X, Y, ts) { const g = c.createLinearGradient(X, Y, X + ts, Y); g.addColorStop(0, '#6a4020'); g.addColorStop(1, '#3a2010'); c.fillStyle = '#20140c'; c.fillRect(X + ts * 0.16, Y + ts * 0.02, ts * 0.68, ts * 0.92); c.fillStyle = g; c.fillRect(X + ts * 0.22, Y + ts * 0.08, ts * 0.56, ts * 0.86); c.fillStyle = 'rgba(0,0,0,.35)'; for (let i = 1; i < 4; i++) c.fillRect(X + ts * (0.22 + i * 0.14), Y + ts * 0.08, 1, ts * 0.86); bloom(c, X + ts * 0.66, Y + ts * 0.55, ts * 0.2, 'rgba(255,220,120,.9)', 0.6); }
+function stairs(c, X, Y, ts, up) { for (let i = 0; i < 5; i++) { const k = up ? 4 - i : i, y = Y + ts * 0.1 + i * ts * 0.17; c.fillStyle = mix('#8a8494', '#1a1820', k / 5); c.fillRect(X + ts * (0.08 + i * 0.03), y, ts * (0.84 - i * 0.06), ts * 0.15); c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(X + ts * (0.08 + i * 0.03), y, ts * (0.84 - i * 0.06), 1); } bloom(c, X + ts / 2, Y + ts * (up ? 0.2 : 0.85), ts * 0.5, up ? 'rgba(160,255,220,.8)' : 'rgba(255,210,120,.8)', 0.35); }
+function altar(c, X, Y, ts, lit) { c.fillStyle = '#3a3646'; c.fillRect(X + ts * 0.12, Y + ts * 0.42, ts * 0.76, ts * 0.5); c.fillStyle = '#5a5668'; c.fillRect(X + ts * 0.08, Y + ts * 0.34, ts * 0.84, ts * 0.12); c.fillStyle = 'rgba(255,255,255,.15)'; c.fillRect(X + ts * 0.08, Y + ts * 0.34, ts * 0.84, 1);
+  const f = Math.sin(App.time * 3) * ts * 0.03; c.fillStyle = lit ? '#9affe0' : '#ff3a52'; c.beginPath(); c.moveTo(X + ts / 2, Y + ts * 0.02 + f); c.lineTo(X + ts * 0.62, Y + ts * 0.18 + f); c.lineTo(X + ts / 2, Y + ts * 0.3 + f); c.lineTo(X + ts * 0.38, Y + ts * 0.18 + f); c.fill(); }
+function chest(c, X, Y, ts, opened) { const x = X + ts * 0.18, y = Y + ts * 0.36, w = ts * 0.64, h = ts * 0.46; shadow(c, X + ts / 2, Y + ts * 0.86, ts * 0.36, ts * 0.08);
+  const g = c.createLinearGradient(x, y, x, y + h); g.addColorStop(0, '#8a5424'); g.addColorStop(1, '#4a2a10'); c.fillStyle = g; c.fillRect(x, y, w, h);
+  c.fillStyle = opened ? '#2a160a' : '#a0682c'; c.fillRect(x - 1, y - (opened ? ts * 0.18 : 0) - ts * 0.08, w + 2, ts * 0.12);
+  c.fillStyle = '#d8b050'; c.fillRect(x, y + h * 0.35, w, 2); c.fillRect(x + w * 0.45, y + h * 0.25, w * 0.1, h * 0.25); c.fillStyle = 'rgba(255,255,255,.18)'; c.fillRect(x, y, w, 1); }
 export { event, btn };

@@ -4,7 +4,7 @@ import { DB } from '../data/index.js';
 import { toSave, fromSave, reveal as revealPlace, rest } from '../engine/state.js';
 import { runEvent, arrivalEvents } from '../engine/events.js';
 import { L, t, getLang } from './i18n.js';
-import { portrait } from './art.js';
+import { portraitHD as portrait } from './hd.js';
 
 export const $ = (s) => document.querySelector(s);
 export function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
@@ -24,8 +24,9 @@ export const App = {
 
 // ---------------------------------------------------------------- the canvas fills the window
 export function resize() {
-  const dpr = Math.min(2, window.devicePixelRatio || 1), w = window.innerWidth, h = window.innerHeight;
-  App.cv.width = Math.round(w * dpr); App.cv.height = Math.round(h * dpr); App.cv.style.width = w + 'px'; App.cv.style.height = h + 'px';
+  // the canvas fills its box (CSS); its pixel buffer follows whatever size that box really has
+  const dpr = Math.min(2, window.devicePixelRatio || 1), w = App.cv.clientWidth || window.innerWidth, h = App.cv.clientHeight || window.innerHeight;
+  App.cv.width = Math.round(w * dpr); App.cv.height = Math.round(h * dpr);
   App.w = w; App.h = h; App.dpr = dpr; App.cx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 

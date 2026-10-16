@@ -8,7 +8,12 @@ function ell(c, x, y, rx, ry, fill, rot = 0) { c.beginPath(); c.ellipse(x, y, Ma
 function rect(c, x, y, w, h, fill) { c.fillStyle = fill; c.fillRect(x, y, w, h); }
 function poly(c, pts, fill, stroke, lw = 2) { c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.closePath(); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } }
 function line(c, x1, y1, x2, y2, col, w = 2) { c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.stroke(); }
-const eyes = (c, x, y, d, r = 3, col = '#fff', pupil = '#111') => { ell(c, x - d, y, r, r, col); ell(c, x + d, y, r, r, col); ell(c, x - d, y, r * 0.5, r * 0.6, pupil); ell(c, x + d, y, r * 0.5, r * 0.6, pupil); };
+let HDM = false;   // HD-2D mode: menacing glowing slits instead of cartoon eyes
+const eyes = (c, x, y, d, r = 3, col = '#fff', pupil = '#111') => {
+  if (HDM) { const glow = col === '#fff' || col === '#ffe' || col === '#f8ffd0' || col === '#fff6c0' ? '#ffd860' : col; c.save(); c.shadowColor = glow; c.shadowBlur = 4;
+    for (const s of [-1, 1]) { c.beginPath(); c.ellipse(x + s * d, y, r * 0.95, r * 0.42, s * 0.25, 0, Math.PI * 2); c.fillStyle = glow; c.fill(); } c.restore(); return; }
+  ell(c, x - d, y, r, r, col); ell(c, x + d, y, r, r, col); ell(c, x - d, y, r * 0.5, r * 0.6, pupil); ell(c, x + d, y, r * 0.5, r * 0.6, pupil);
+};
 
 // ---------------------------------------------------------------- heroes
 // a head-and-shoulders portrait in a 64 x 64 box
@@ -82,11 +87,12 @@ export function hero(c, id, x, y, s = 1, dir = 0, step = 0) {
 // drawn standing on (x, y); k = scale (1 = a normal monster about 90 px tall); t = time for idle motion
 export function monster(c, art, hue, x, y, k, t = 0, o = {}) {
   c.save(); c.translate(x, y); c.scale(o.flip ? -k : k, k);
-  const b = Math.sin(t * 2.4 + hue) * 2, main = H(hue, 45, 45), dark = H(hue, 45, 28), light = H(hue, 55, 65);
-  ell(c, 0, 0, 34, 7, 'rgba(0,0,0,.35)');
+  // HD-2D mode: darker, less saturated, more natural colours (shading and outline are added by the sprite stamp)
+  const b = Math.sin(t * 2.4 + hue) * 2, main = o.hd ? H(hue, 26, 38) : H(hue, 45, 45), dark = o.hd ? H(hue, 28, 20) : H(hue, 45, 28), light = o.hd ? H(hue, 30, 56) : H(hue, 55, 65);
+  if (!o.hd) ell(c, 0, 0, 34, 7, 'rgba(0,0,0,.35)');
   if (o.flash) c.filter = 'brightness(2.2)';
   const draw = DRAW[art] || DRAW.ooze;
-  draw(c, { main, dark, light, hue, b, t });
+  HDM = !!o.hd; draw(c, { main, dark, light, hue, b, t }); HDM = false;
   c.restore();
 }
 const DRAW = {

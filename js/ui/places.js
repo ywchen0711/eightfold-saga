@@ -4,7 +4,8 @@ import { give, take, count, rest, derived, cond, flag, reveal, join, dismiss, in
 import { heroesHere } from '../engine/events.js';
 import { App, $, el, btn, esc, toast, itemName, event, arrive, choice } from './app.js';
 import { L, t } from './i18n.js';
-import { townArt, worldMap, portrait } from './art.js';
+import { worldMap } from './art.js';
+import { portraitHD as portrait, townScene, particles, themeParticles } from './hd.js';
 
 const town = () => DB.locations[App.S.loc];
 function frame(title, body, onBack) {
@@ -135,7 +136,7 @@ function guildScreen() {
 }
 App.screens.town = {
   enter() { if (App.screen !== 'town') return; square(); },
-  draw() { townArt(App.cx, town().style, App.w, App.h, App.time); },
+  draw() { const st = town().style; App.cx.drawImage(townScene(st, Math.round(App.w), Math.round(App.h)), 0, 0); particles(App.cx, themeParticles(st), App.w, App.h * 0.8, App.time, 36); },
 };
 
 // ---------------------------------------------------------------- the world map
