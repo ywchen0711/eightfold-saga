@@ -18,7 +18,7 @@ const sceneH = () => (narrow() ? Math.round(App.h * 0.44) : App.h);
 // where everyone stands (screen pixels, feet positions) and how big the pixels are
 function layout() {
   const W = App.w, H = sceneH(), wide = !narrow();
-  const PX = Math.max(1, Math.round(H * (wide ? 0.2 : 0.21) / 68)), yA = H * (wide ? 0.55 : 0.66), yB = H * (wide ? 0.7 : 0.92);
+  const PX = Math.max(1, Math.round(H * (wide ? 0.2 : 0.21) / 68)), yA = H * (wide ? 0.53 : 0.66), yB = H * (wide ? 0.665 : 0.92);
   G = { s: 1, W, H, PX, yA, yB };
   const n = B.enemies.length, unit = H * 0.24 / 90, left = W * 0.05, right = W * (wide ? 0.55 : 0.6);
   B.enemies.forEach((e, i) => {
@@ -45,7 +45,7 @@ function draw() {
     if (u.side === 'e') {
       if (u.ko) { u.fade -= 0.03; if (u.fade <= 0) continue; c.globalAlpha = Math.max(0, u.fade); }
       shadow(c, u.vx + ox, u.vy + 2, 46 * u.k * u.size + 10, 10 * u.k + 4);
-      monsterSprite(c, u.art, u.hue, u.vx + ox, u.vy + oy, u.k, T + u.i, { flip: true, flash: flash['e' + u.i] > 0, px: G.PX });
+      monsterSprite(c, u.art, u.hue, u.vx + ox, u.vy + oy, u.k, T + u.i, { flash: flash['e' + u.i] > 0, px: G.PX });
       c.globalAlpha = 1;
       if (pickTarget && !u.ko) { const y = u.vy - 118 * u.k + Math.sin(T * 6) * 4; c.fillStyle = '#ffe08a'; c.beginPath(); c.moveTo(u.vx - 8, y - 12); c.lineTo(u.vx + 8, y - 12); c.lineTo(u.vx, y); c.fill(); bloom(c, u.vx, y - 6, 22, 'rgba(255,220,140,.8)', 0.5); }
     } else {

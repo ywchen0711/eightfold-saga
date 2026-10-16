@@ -2,7 +2,8 @@
 // outlined) placed in soft, lit dioramas — hazy distance, depth-of-field blur, light shafts, drifting particles,
 // colour grading and vignettes. Sprites are drawn at pixel resolution and scaled up crisp; scenery stays smooth.
 import { DB } from '../data/index.js';
-import { monster as vectorMonster, THEMES } from './art.js';
+import { THEMES } from './art.js';
+import { beast } from './beasts.js';
 
 // ---------------------------------------------------------------- colour helpers
 const rgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -156,9 +157,15 @@ function heroWeapon(c, type) {
 
 // ---------------------------------------------------------------- monsters: the vector designs, shaded, outlined and pixelated
 export function monsterSprite(c, art, hue, x, y, k, t, o = {}) {
-  // drawn at pixel resolution (about a third of screen size) then scaled up crisp
-  const px = o.px || 3, kk = k / px, w = Math.ceil(170 * kk), h = Math.ceil(170 * kk);
-  stamp(c, x, y, px, w, h, w / 2, h - 6 * kk, (cx) => vectorMonster(cx, art, hue, 0, 0, kk, t, { flip: !!o.flip, hd: 1 }), { shade: 1, flash: o.flash });
+  // pixel-art sprites (beasts.js): k = screen pixels per design unit, px = screen pixels per sprite pixel
+  const px = o.px || 2, frame = Math.floor((t || 0) * 1.6) % 2, s = beast(art, hue, k / px, frame);
+  c.save(); c.imageSmoothingEnabled = false;
+  if (o.flip) { c.translate(x, 0); c.scale(-1, 1); c.translate(-x, 0); }
+  const dx = Math.round(x - s.ox * px), dy = Math.round(y - s.oy * px);
+  c.drawImage(s.cv, dx, dy, s.W * px, s.H * px);
+  if (o.flash) { c.globalAlpha = 0.85; c.drawImage(s.white, dx, dy, s.W * px, s.H * px); }
+  c.restore();
+  if (!o.noGlow) for (const [ex, ey] of s.eyes) bloom(c, x + (o.flip ? -1 : 1) * (ex - s.ox) * px, y + (ey - s.oy) * px, 5 * px + 4, 'rgba(255,214,140,.9)', 0.45);
 }
 
 // ---------------------------------------------------------------- dioramas: battle backgrounds
