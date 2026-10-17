@@ -55,7 +55,8 @@ async function arriveTile() {
     const b = DB.bosses[d.boss];
     if ((await choice(`${L(b)} ── ${L({ zh: '挑戰嗎？', en: 'Challenge it?' })}`, [L({ zh: '戰鬥', en: 'Fight' }), t('cancel')])) !== 0) { px = fl.end.x; py = fl.end.y + (open(fl, fl.end.x, fl.end.y + 1) ? 1 : -1); return; }
     inBattle = true;
-    const res = await App.screens.battle.run({ boss: d.boss }); inBattle = false;
+    const res = await App.screens.battle.run({ boss: d.boss }); inBattle = false; safe = 2;
+    for (const o of syms) if (Math.abs(o.x - px) + Math.abs(o.y - py) <= 5) o.stun = Math.max(o.stun, 6);
     if (res === 'win') { await bossCleared(d.id); hud(); }
     else if (res === 'flee') { px = fl.start.x; py = fl.start.y; }
   }
@@ -70,7 +71,10 @@ async function fight(s) {
   const res = await App.screens.battle.run({ enemies: encounter(App.S, D(), R) });
   inBattle = false;
   if (res === 'win') syms = syms.filter((o) => o !== s);
-  else if (res === 'flee') { s.stun = 8; safe = 1.5; }
+  else if (res === 'flee') s.stun = 8;
+  // after any battle: a moment of safety, and monsters close by are stunned so you can walk away
+  safe = 2;
+  for (const o of syms) if (Math.abs(o.x - px) + Math.abs(o.y - py) <= 5) o.stun = Math.max(o.stun, 6);
   if (App.screen === 'dungeon') hud();
 }
 function leave() { const S = App.S; S.loc = S.dungeon.id; S.dungeon = null; App.save(); App.go('world'); }
@@ -83,7 +87,11 @@ App.screens.dungeon = {
     if (arg.back && fl) { hud(); return; }
     R = rng((Date.now() ^ 0x5bd1e995) >>> 0);
     if (arg.id) { S.dungeon = { id: arg.id, floor: 1, x: 0, y: 0 }; loadFloor(1, 'start'); toast(`${esc(L(D()))}`, 'big'); }
-    else { const keep = { ...S.dungeon }; loadFloor(keep.floor, 'start'); if (open(fl, keep.x, keep.y)) { px = keep.x; py = keep.y; } }
+    else {
+      // back in a dungeon from a save (e.g. retrying after a defeat): no monster starts right next to you
+      const keep = { ...S.dungeon }; loadFloor(keep.floor, 'start'); if (open(fl, keep.x, keep.y)) { px = keep.x; py = keep.y; }
+      syms = syms.filter((o) => Math.abs(o.x - px) + Math.abs(o.y - py) > 7); safe = 2.5;
+    }
   },
   leave() {},
   tick(dt, input) {
@@ -100,7 +108,7 @@ App.screens.dungeon = {
   // drifting dust and a tilt-shift blur at the top and bottom of the view
   draw() {
     if (!fl) return;
-    const W = App.w, H = App.h, ts = Math.round(Math.max(52, Math.min(110, Math.min(W, H) / 7.2))), lift = Math.round(ts * 0.5), PX = Math.max(2, Math.round(ts / 32));
+    const W = App.w, H = App.h, ts = Math.round(Math.max(52, Math.min(96, Math.min(W, H) / 9))), lift = Math.round(ts * 0.5), PX = Math.max(2, Math.round(ts / 32));
     const c = scene(W, H), S = App.S, T = THEMES[fl.theme] || THEMES.cave;
     const ox = Math.round(W / 2 - (px + 0.5) * ts), oy = Math.round(H / 2 - (py + 0.5) * ts + lift * 0.5);
     c.fillStyle = '#040308'; c.fillRect(0, 0, W, H);

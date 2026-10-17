@@ -216,9 +216,12 @@ async function heroAct(u, ev, hits) {
     return 120;
   }
   if (ev.item) {
+    // healing and support items are used on the spot (the glow plays on whoever they heal); attack items are thrown
+    const onEnemy = tgt && tgt.side === 'e';
+    if (!onEnemy) { u.anim = { pose: 'cast', t: 0, dur: 0.5, dx: 0, dy: 0 }; sfx.push({ k: 'charge', x: u.vx, y: u.vy - 22 * z, t: 0.35, dur: 0.35 }); await wait(260); return 60; }
     u.anim = { pose: 'throw', t: 0, dur: 0.45, dx: -3 * z, dy: 0, strike: 0.35 };
     await wait(150);
-    if (tgt && tgt !== u) { const [x0, y0] = hand(u), [x1, y1] = aimAt(tgt); sfx.push({ k: 'proj', style: 'bottle', arc: 26, x0, y0, x1, y1, t: 0.32, dur: 0.32 }); await wait(320); }
+    const [x0, y0] = hand(u), [x1, y1] = aimAt(tgt); sfx.push({ k: 'proj', style: 'bottle', arc: 26, x0, y0, x1, y1, t: 0.32, dur: 0.32 }); await wait(320);
     return 80;
   }
   const wtype = ev.tech ? DB.techs[ev.tech].type : (DB.weapons[ev.w] || { type: 'fist' }).type, style = STYLE[wtype] || 'swing', tech = !!ev.tech, z2 = tech ? 1.25 : 1;
