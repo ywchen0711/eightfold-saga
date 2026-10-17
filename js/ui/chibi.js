@@ -10,7 +10,8 @@ const ROBE = new Set(['erin', 'morrow', 'agnes', 'quill', 'hexa']), CAPE = new S
 export const CW = 36, CH = 40, FOOT = 38;           // the sprite box and where the feet are
 const cache = new Map();
 
-// pose: idle | step | atk | cast | hurt | def | ko | win; frame 0/1 animates; wtype: the weapon in hand
+// pose: idle | step | atk (swing) | smash | thrust | aim | throw | cast | hurt | def | ko | win; frame 0 = wind-up, 1 = strike
+// wtype: the weapon in hand (the arm points left, toward the enemies, at rotate(+PI/2))
 export function chibi(id, pose = 'idle', frame = 0, wtype = 'sword') {
   const key = `${id}|${pose}|${frame}|${wtype}`; let cv = cache.get(key); if (cv) return cv;
   cv = document.createElement('canvas'); cv.width = CW; cv.height = CH; const x = cv.getContext('2d');
@@ -21,7 +22,8 @@ export function chibi(id, pose = 'idle', frame = 0, wtype = 'sword') {
   const small = id === 'jasper' ? 1 : 0;                                   // Jasper is a little shorter
   const bx = 12, hx = bx, hy = 6 + small, ty = hy + 12, sy = ty + 8, ly = sy + 3, legH = 4 - small;
   const bob = pose === 'idle' && frame ? 1 : 0, crouch = pose === 'def' ? 1 : 0;
-  x.translate(pose === 'hurt' ? 2 : pose === 'atk' ? -2 : 0, bob + crouch);
+  const ATK = { atk: 1, smash: 1, thrust: 1, aim: 1, throw: 1 }, lean = pose === 'hurt' ? 2 : ATK[pose] ? (frame ? -2 : pose === 'smash' || pose === 'throw' ? 1 : -1) : 0;
+  x.translate(lean, bob + crouch);
   // ---- cape and long hair behind ----
   if (CAPE.has(id)) { R(bx + 1, ty + 1, 12, 13, shade(c2, -0.2)); R(bx + 12, ty + 2, 2, 12, shade(c2, -0.4)); }
   if (['long', 'wavy', 'braid', 'pony'].includes(lk.hair)) { R(hx - 1, hy + 3, 3, lk.hair === 'pony' ? 6 : 11, hairD); R(hx + 10, hy + 3, 3, 11, hairD); if (lk.hair === 'pony') R(hx + 11, hy + 1, 3, 12, hair); }
@@ -85,12 +87,16 @@ export function chibi(id, pose = 'idle', frame = 0, wtype = 'sword') {
   // ---- the front arm with the weapon (raised to strike or cast) ----
   x.save();
   const ax = bx - 1, ay = ty + 1;
-  if (pose === 'atk') { x.translate(ax + 1, ay + 1); x.rotate(frame ? -0.6 : -2.2); }
+  if (pose === 'atk') { x.translate(ax + 1, ay + 1); x.rotate(frame ? 0.9 : -2.2); }                      // a swing: from behind the head down toward the enemy
+  else if (pose === 'smash') { x.translate(ax + 1, ay + (frame ? 2 : 0)); x.rotate(frame ? 0.45 : -2.95); }    // overhead, then slammed down
+  else if (pose === 'thrust') { x.translate(ax + (frame ? -3 : 2), ay + 2); x.rotate(frame ? 1.57 : 1.15); }    // pulled back, then straight forward
+  else if (pose === 'aim') { x.translate(ax + (frame ? 1 : -1), ay + 2); x.rotate(1.57); }                      // held level at the enemy (frame 1: recoil)
+  else if (pose === 'throw') { x.translate(ax + 1, ay + 1); x.rotate(frame ? 1.25 : -2.6); }
   else if (pose === 'cast' || pose === 'win') { x.translate(ax + 1, ay + 1); x.rotate(-2.8); }
   else if (pose === 'def') { x.translate(ax + 1, ay + 1); x.rotate(-1.3); }
   else x.translate(ax + 1, ay + 1);
   R(-1, -1, 3, 3, cl); R(-1, 2, 3, 3, skin); R(-1, 4 + (st && pose === 'idle' ? 1 : 0), 3, 2, skin);
-  x.translate(0, 6); weapon(x, wtype, R);
+  x.translate(0, 6); if (!(pose === 'throw' && frame)) weapon(x, wtype, R);                                    // a thrown weapon has left the hand
   x.restore();
   if (pose === 'cast') { R(bx - 6, hy - 6, 2, 2, '#fff6a0'); R(bx - 4, hy - 8, 1, 1, '#ffffff'); R(bx - 8, hy - 3, 1, 1, '#fff6a0'); }
   // knocked out: the whole figure lies on its side
