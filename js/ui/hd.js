@@ -161,7 +161,8 @@ export function monsterSprite(c, art, hue, x, y, k, t, o = {}) {
   // hand-drawn families (dqmon.js): scaled so a normal monster stands about as tall as before, gently bobbing
   const dq = dqSprite(art, hue);
   if (dq) {
-    const p0 = o.px || 2, sc = Math.max(p0, Math.round(Math.min(p0 * 2.2, k * 52 / dq.h))), bob = Math.floor((t || 0) * 2) % 2 ? Math.round(sc * 0.6) : 0;
+    // painted sprites (paintmon.js) stand about 80*k pixels tall (a normal monster: a little taller than the heroes)
+    const p0 = o.px || 2, sc = dq.painted ? Math.max(1, Math.round(k * 80 / dq.h)) : Math.max(p0, Math.round(Math.min(p0 * 2.2, k * 52 / dq.h))), bob = Math.floor((t || 0) * 2) % 2 ? Math.round(sc * 0.6) : 0;
     const w = dq.w * sc, h = dq.h * sc, dx = Math.round(x - w / 2), dy = Math.round(y - h + sc + bob);
     c.save(); c.imageSmoothingEnabled = false;
     if (o.flip) { c.translate(x, 0); c.scale(-1, 1); c.translate(-x, 0); }

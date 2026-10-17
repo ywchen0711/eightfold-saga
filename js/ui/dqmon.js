@@ -7,6 +7,8 @@
 // b  main colour      f  second colour     F  cream (bellies, muzzles)               y  gold (horns, beaks, wood)
 // n  brown            N  dark brown        g  steel / stone    s  skin               i  bone          h  wing glass
 // e  glowing (eyes, runes)
+import { paintSprite } from './paintmon.js';
+
 const MAPS = {
   ooze: [
     '...........bbbbbbbbbb...........',
@@ -334,6 +336,7 @@ const SHADED = 'bfFynNgsi';
 const cache = new Map();
 // the sprite for a family and colour: { cv, w, h, eyes }
 export function dqSprite(art, hue) {
+  const painted = paintSprite(art, hue); if (painted) return painted;      // the newer painted designs (paintmon.js)
   const key = art + ':' + hue; let s = cache.get(key); if (s) return s;
   const map = MAPS[art]; if (!map) return null;
   const P = PAL[art] || {}, pal = {
