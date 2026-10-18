@@ -90,7 +90,7 @@ function treeCanvas(kind, col) {
 
 // ---------------------------------------------------------------- sprites: hero chibis and monsters drawn into small canvases
 function heroCanvas(id, pose, frame, wtype, flip) {
-  return once(`h:${id}:${pose}:${frame}:${wtype}:${flip}`, () => { const c = mk(40, 40); drawChibi(c.getContext('2d'), id, 20, 38, 1, pose, frame, wtype, { flip }); return c; });
+  return once(`h:${id}:${pose}:${frame}:${wtype}:${flip}`, () => { const c = mk(48, 44); drawChibi(c.getContext('2d'), id, 24, 42, 1, pose, frame, wtype, typeof flip === 'string' ? { dir: flip } : { flip }); return c; });
 }
 function monCanvas(art, hue, frame) {
   return once(`m:${art}:${hue}:${frame}`, () => { const c = mk(160, 150); monsterSprite(c.getContext('2d'), art, hue, 80, 140, 1, frame * 0.5 + 0.01, { px: 1, noGlow: true }); return c; });

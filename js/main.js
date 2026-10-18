@@ -137,5 +137,5 @@ requestAnimationFrame(frame);
 import('/save.js').then(async (m) => { App.cloud = m; if (await m.pull('eightfold-saga', 'efs_save') && App.screen === 'title') App.go('title'); }).catch(() => {});
 window.__efs = { App, DB, newGame, rest, fromSave, event };
 // HD-2D: three.js is loaded from the CDN; until (unless) it arrives the painted 2D scenes are used
-import('./ui/hd3d.js?v=1').then((m) => { try { App.hd3 = m.create($('#gl')); } catch (e) { App.hd3 = null; } if (App.hd3 && App.screen === 'title') App.go('title'); }).catch(() => {});
+import('./ui/hd3d.js?v=2').then((m) => { try { App.hd3 = m.create($('#gl')); } catch (e) { App.hd3 = null; } if (App.hd3 && App.screen === 'title') App.go('title'); }).catch(() => {});
 App.go('title');

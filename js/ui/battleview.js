@@ -100,13 +100,13 @@ function draw() {
   if (!hd) particles(c, theme, W, H, T, narrow() ? 28 : 48);
   c.restore();
   // text on top: damage numbers, the line of the round, glimmers
-  for (const n of fx) { c.globalAlpha = Math.min(1, n.t * 2); c.font = `700 ${n.big ? 30 : 22}px "Cinzel", "Noto Serif TC", serif`; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.85)'; c.strokeText(n.text, n.x, n.y); c.fillStyle = n.col; c.fillText(n.text, n.x, n.y); }
+  for (const n of fx) { c.globalAlpha = Math.min(1, n.t * 2); c.font = `${n.big ? 30 : 22}px "DotGothic16", "Noto Sans TC", "Microsoft JhengHei", monospace`; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.85)'; c.strokeText(n.text, n.x, n.y); c.fillStyle = n.col; c.fillText(n.text, n.x, n.y); }
   c.globalAlpha = 1; c.textAlign = 'left';
-  for (const e of B.enemies) if (!e.ko && Object.keys(e.st).length) { c.font = '12px "Noto Serif TC", serif'; c.fillStyle = '#ffe08a'; c.fillText(Object.keys(e.st).map((k) => L(DB.statuses[k])).join(' '), e.vx - 24, e.vy + 16); }
-  if (msg) { c.font = '600 17px "Noto Serif TC", serif'; const tw = c.measureText(msg).width, x0 = W / 2 - tw / 2 - 28; const g = c.createLinearGradient(x0, 0, x0 + tw + 56, 0); g.addColorStop(0, 'rgba(8,8,16,0)'); g.addColorStop(0.15, 'rgba(8,8,16,.85)'); g.addColorStop(0.85, 'rgba(8,8,16,.85)'); g.addColorStop(1, 'rgba(8,8,16,0)');
+  for (const e of B.enemies) if (!e.ko && Object.keys(e.st).length) { c.font = '12px "DotGothic16", "Noto Sans TC", "Microsoft JhengHei", monospace'; c.fillStyle = '#ffe08a'; c.fillText(Object.keys(e.st).map((k) => L(DB.statuses[k])).join(' '), e.vx - 24, e.vy + 16); }
+  if (msg) { c.font = '17px "DotGothic16", "Noto Sans TC", "Microsoft JhengHei", monospace'; const tw = c.measureText(msg).width, x0 = W / 2 - tw / 2 - 28; const g = c.createLinearGradient(x0, 0, x0 + tw + 56, 0); g.addColorStop(0, 'rgba(8,8,16,0)'); g.addColorStop(0.15, 'rgba(8,8,16,.85)'); g.addColorStop(0.85, 'rgba(8,8,16,.85)'); g.addColorStop(1, 'rgba(8,8,16,0)');
     c.fillStyle = g; c.fillRect(x0, 12, tw + 56, 32); c.fillStyle = 'rgba(214,190,130,.6)'; c.fillRect(x0 + 20, 12, tw + 16, 1); c.fillRect(x0 + 20, 43, tw + 16, 1); c.fillStyle = '#f4ecd8'; c.textAlign = 'center'; c.fillText(msg, W / 2, 34); c.textAlign = 'left'; }
   if (glim) { const a = Math.min(1, glim.t * 2), cy = H * 0.3; c.globalAlpha = a; bloom(c, glim.x || W / 2, cy - 20, 120, 'rgba(255,236,170,.9)', 0.55);
-    c.font = '48px serif'; c.textAlign = 'center'; c.fillText('💡', glim.x || W / 2, cy); c.font = '700 30px "Noto Serif TC", serif'; c.lineWidth = 6; c.strokeStyle = 'rgba(40,24,0,.9)';
+    c.font = '48px serif'; c.textAlign = 'center'; c.fillText('💡', glim.x || W / 2, cy); c.font = '30px "DotGothic16", "Noto Sans TC", "Microsoft JhengHei", monospace'; c.lineWidth = 6; c.strokeStyle = 'rgba(40,24,0,.9)';
     c.strokeText(`${t('glimmer')} ${glim.name}`, W / 2, cy + 48); c.fillStyle = '#fff2c0'; c.fillText(`${t('glimmer')} ${glim.name}`, W / 2, cy + 48); c.textAlign = 'left'; c.globalAlpha = 1; }
 }
 function tick(dt) {

@@ -127,7 +127,7 @@ App.screens.dungeon = {
     for (const ch of fl.chests) marks.push({ y: ch.y, draw: () => chest(c, ox + ch.x * ts, oy + ch.y * ts, ts, !!S.done['chest:' + ch.key]) });
     for (const s of syms) { const fm = DB.families[s.fam]; marks.push({ y: s.y + 0.5, draw: () => { const X = ox + (s.x + 0.5) * ts, Y = oy + (s.y + 0.9) * ts; if (s.stun > 0) c.globalAlpha = 0.45; shadow(c, X, Y, ts * 0.4, ts * 0.12); monsterSprite(c, fm.art, fm.hue, X, Y, ts * 0.85 / 90, App.time + s.id, { px: z }); c.globalAlpha = 1; } }); }
     marks.push({ y: py + 0.6, draw: () => { const X = ox + (px + 0.5) * ts, Y = oy + (py + 0.92) * ts; shadow(c, X, Y, ts * 0.32, ts * 0.1);
-      drawChibi(c, S.party[0].id, X, Y - (anim > 0 ? Math.round(Math.sin(anim * Math.PI) * z) : 0), z, anim > 0 ? 'step' : 'idle', Math.floor(App.time * 2) % 2, weaponsOf(S.party[0])[0].type, { flip: face > 0 }); } });
+      drawChibi(c, S.party[0].id, X, Y - (anim > 0 ? Math.round(Math.sin(anim * Math.PI) * z) : 0), z, anim > 0 ? 'step' : 'idle', Math.floor(App.time * 2) % 2, weaponsOf(S.party[0])[0].type, { dir: ['down', 'left', 'right', 'up'][dir] }); } });
     // walls are raised blocks: draw row by row so a block in front covers what stands behind it
     marks.sort((a, b) => a.y - b.y); let mi = 0;
     for (let y = y0; y < y1; y++) {
@@ -163,7 +163,7 @@ function draw3d() {
   const S = App.S, { heroCanvas, monCanvas } = App.hd3, dt = Math.min(0.1, Math.max(0, App.time - lastDraw)); lastDraw = App.time;
   if (dispX === null || Math.abs(dispX - px) + Math.abs(dispY - py) > 3) { dispX = px; dispY = py; }
   const k = Math.min(1, dt * 14); dispX += (px - dispX) * k; dispY += (py - dispY) * k;
-  const lead = S.party[0], sprites = [{ img: heroCanvas(lead.id, anim > 0 ? 'step' : 'idle', Math.floor(App.time * 2) % 2, weaponsOf(lead)[0].type, face > 0), x: dispX + 0.5, z: dispY + 0.62, upp: 1 / 30, foot: 38, shadow: 0.7 }];
+  const lead = S.party[0], sprites = [{ img: heroCanvas(lead.id, anim > 0 ? 'step' : 'idle', Math.floor(App.time * 2) % 2, weaponsOf(lead)[0].type, ['down', 'left', 'right', 'up'][dir]), x: dispX + 0.5, z: dispY + 0.62, upp: 1 / 30, foot: 42, shadow: 0.7 }];
   for (const s of syms) {
     if (s._x === undefined || Math.abs(s._x - s.x) + Math.abs(s._y - s.y) > 3) { s._x = s.x; s._y = s.y; }
     s._x += (s.x - s._x) * k; s._y += (s.y - s._y) * k;

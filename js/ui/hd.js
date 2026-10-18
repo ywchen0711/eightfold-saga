@@ -5,6 +5,18 @@ import { DB } from '../data/index.js';
 import { THEMES } from './art.js';
 import { beast } from './beasts.js';
 import { dqSprite } from './dqmon.js';
+import { monster as coMonster } from './coart.js';
+
+// each enemy family drawn as a Chosen Ones monster; the colours come from the enemy's hue
+const CO_ART = { beast: 'wolf', ooze: 'slime', bird: 'bird', insect: 'bee', undead: 'skeleton', reptile: 'snake', plant: 'plant', human: 'knight', ghost: 'ghost',
+  fae: 'imp', elemental: 'wisp', dragon: 'dragon', demon: 'demon', construct: 'golem', aquatic: 'fish', god: 'lord' };
+function hsl(h, s, l) { h = ((h % 360) + 360) % 360; s /= 100; l /= 100; const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return '#' + [f(0), f(8), f(4)].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join(''); }
+function coSprite(art, hue, flash, sc = 1) {
+  const kind = CO_ART[art]; if (!kind) return null;
+  const col = art === 'undead' ? [hsl(hue, 18, 84), hsl(hue, 30, 96)] : art === 'god' ? [hsl(hue, 45, 42), hsl(hue + 30, 70, 70)] : [hsl(hue, 58, 56), hsl(hue + 25, 75, 80)];
+  return coMonster(kind, col, flash, sc);
+}
 
 // ---------------------------------------------------------------- colour helpers
 const rgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -158,6 +170,14 @@ function heroWeapon(c, type) {
 
 // ---------------------------------------------------------------- monsters: the vector designs, shaded, outlined and pixelated
 export function monsterSprite(c, art, hue, x, y, k, t, o = {}) {
+  // the Chosen Ones style: a 96px outlined drawing, scaled so a normal monster stands about 80*k pixels tall, gently bobbing
+  const S = 92 * k * (art === 'god' ? 1.3 : 1), co = coSprite(art, hue, !!o.flash, Math.min(4, Math.max(1, Math.ceil(S * (window.devicePixelRatio || 1) / 96))));
+  if (co) {
+    const bob = Math.sin((t || 0) * 2.6) * 1.6 * k;
+    c.save(); c.imageSmoothingEnabled = true;
+    if (o.flip) { c.translate(x, 0); c.scale(-1, 1); c.translate(-x, 0); }
+    c.drawImage(co, x - S / 2, y - S * 0.93 + bob, S, S); c.restore(); return;
+  }
   // hand-drawn families (dqmon.js): scaled so a normal monster stands about as tall as before, gently bobbing
   const dq = dqSprite(art, hue);
   if (dq) {
