@@ -184,7 +184,7 @@ export function monsterSprite(c, art, hue, x, y, k, t, o = {}) {
 }
 
 // ---------------------------------------------------------------- dioramas: battle backgrounds
-const DIO = {
+export const DIO = {
   cave: { sky: ['#07060a', '#15111a', '#241c24'], haze: '#3a2e34', kind: 'rocks', light: '#ffb070', part: 'dust', grade: 'rgba(40,24,10,.16)' },
   mine: { sky: ['#08060a', '#1a1210', '#2e2016'], haze: '#3e2e22', kind: 'beams', light: '#ffa850', part: 'dust', grade: 'rgba(60,30,8,.18)' },
   mountain: { sky: ['#1a1e30', '#4a4a60', '#9a8a80'], haze: '#8a8090', kind: 'peaks', light: '#fff0d0', part: 'dust', grade: 'rgba(30,30,60,.1)' },

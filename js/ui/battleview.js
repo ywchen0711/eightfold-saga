@@ -36,9 +36,10 @@ function layout() {
 function draw() {
   if (App.screen !== 'battle' || !G) return;
   const c = App.cx, W = App.w, H = G.H, T = App.time;
-  c.fillStyle = '#050508'; c.fillRect(0, 0, W, App.h);
+  const hd = App.hd({ scene: 'arena', theme, vh: H });
+  if (hd) { c.clearRect(0, 0, W, App.h); c.fillStyle = '#050508'; if (App.h > H) c.fillRect(0, H, W, App.h - H); } else { c.fillStyle = '#050508'; c.fillRect(0, 0, W, App.h); }
   c.save(); if (shake > 0) c.translate(Math.round((Math.random() - 0.5) * shake), 0);
-  c.drawImage(diorama(theme, Math.round(W), Math.round(H)), 0, 0);
+  if (!hd) c.drawImage(diorama(theme, Math.round(W), Math.round(H)), 0, 0);
   // a monster leaves only when the hit that defeats it is played back (e.gone), not when the round is worked out
   const all = [...B.enemies.filter((e) => !(e.gone && !(e.fade > 0))), ...B.party].sort((a, b) => a.vy - b.vy);
   for (const u of all) {
@@ -96,7 +97,7 @@ function draw() {
     }
     if (e.k === 'heal') { bloom(c, e.x, e.y - p * 20 * z, 24 * z, 'rgba(140,255,170,.9)', 0.7 * (1 - p)); c.fillStyle = 'rgba(200,255,210,.9)'; for (let i = 0; i < 6; i++) c.fillRect(e.x - 12 * z + i * 5 * z, e.y - p * 30 * z - (i % 2) * 8 * z, z * 2, z * 2); }
   }
-  particles(c, theme, W, H, T, narrow() ? 28 : 48);
+  if (!hd) particles(c, theme, W, H, T, narrow() ? 28 : 48);
   c.restore();
   // text on top: damage numbers, the line of the round, glimmers
   for (const n of fx) { c.globalAlpha = Math.min(1, n.t * 2); c.font = `700 ${n.big ? 30 : 22}px "Cinzel", "Noto Serif TC", serif`; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.85)'; c.strokeText(n.text, n.x, n.y); c.fillStyle = n.col; c.fillText(n.text, n.x, n.y); }

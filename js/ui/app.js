@@ -22,6 +22,25 @@ export const App = {
   resume() { const S = this.S; if (S.dungeon) this.go('dungeon', { resume: true }); else this.go(DB.locations[S.loc].kind === 'town' ? 'town' : 'world'); },
 };
 
+// ---------------------------------------------------------------- HD-2D: the 3D view under the canvas (js/ui/hd3d.js)
+// App.hd(state) renders it and returns true; false means "draw the painted 2D scene yourself" (switched off, no WebGL, or failed)
+App.hd3 = null; App.hdOn = (() => { try { return localStorage.getItem('efs_hd') !== '0'; } catch (e) { return true; } })();
+App.hdUsed = false;
+let glSize = '', hdScale = 1, slowT = 0, lastHd = 0;
+App.hd = function (st) {
+  if (!this.hd3 || !this.hdOn) return false;
+  const gl = $('#gl'), vh = Math.round(st.vh || this.h);
+  let dpr = Math.min(2, window.devicePixelRatio || 1); if (this.w * vh * dpr * dpr > 2.2e6) dpr = Math.sqrt(2.2e6 / (this.w * vh)); dpr = Math.max(0.5, dpr * hdScale);
+  const size = `${this.w}x${vh}x${dpr.toFixed(3)}`;
+  if (size !== glSize) { glSize = size; gl.style.height = vh + 'px'; this.hd3.resize(this.w, vh, dpr); }
+  // a slow device draws the 3D view at a lower resolution
+  const gap = this.time - lastHd; lastHd = this.time; slowT = gap > 0.045 && gap < 0.5 ? slowT + gap : Math.max(0, slowT - gap); if (slowT > 2 && hdScale > 0.5) { hdScale *= 0.8; slowT = 0; }
+  try { this.hd3.render({ t: this.time, ...st }); } catch (e) { console.error(e); window.__err = String(e.stack || e); this.hd3 = null; gl.style.visibility = 'hidden'; return false; }
+  this.hdUsed = true; return true;
+};
+App.setHd = function (on) { this.hdOn = on; try { localStorage.setItem('efs_hd', on ? '1' : '0'); } catch (e) { /* */ } };
+App.hdLabel = () => `🎨 ${L({ zh: '畫面', en: 'Graphics' })}: ${App.hdOn ? 'HD-2D' : L({ zh: '經典', en: 'Classic' })}`;
+
 // ---------------------------------------------------------------- the canvas fills the window
 export function resize() {
   // the canvas fills its box (CSS); its pixel buffer follows whatever size that box really has

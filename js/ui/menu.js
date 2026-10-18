@@ -90,6 +90,7 @@ function draw() {
     const list = el('div', 'list');
     list.appendChild(btn(`💾 ${t('save')}`, () => { App.save(); toast(t('saved')); }, 'go'));
     list.appendChild(btn(`🌐 ${t('language')}: ${getLang() === 'zh' ? '中文' : 'English'}`, () => { setLang(getLang() === 'zh' ? 'en' : 'zh'); App.applyLang(); draw(); }));
+    if (App.hd3) list.appendChild(btn(App.hdLabel(), () => { App.setHd(!App.hdOn); draw(); }));
     list.appendChild(btn(`⏩ ${L({ zh: '戰鬥動畫速度', en: 'Battle speed' })}: ${App.fast ? L({ zh: '快', en: 'Fast' }) : L({ zh: '普通', en: 'Normal' })}`, () => { App.fast = !App.fast; try { localStorage.setItem('efs_fast', App.fast ? '1' : ''); } catch (e) { /* */ } draw(); }));
     list.appendChild(btn(`🏠 ${t('toTitle')}`, () => App.go('title')));
     body.appendChild(list);

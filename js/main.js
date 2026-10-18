@@ -30,10 +30,11 @@ App.screens.title = {
     if (has) m.appendChild(el('div', 'sm', `${esc(L(DB.chars[has.hero]))} · ${esc(L(DB.locations[has.loc] || { zh: '', en: '' }))} · ${t('br')} ${has.br} · 💎${(has.stones || []).length}`));
     m.appendChild(btn(t('newGame'), () => App.go('choose')));
     m.appendChild(btn(`🌐 ${getLang() === 'zh' ? 'English' : '中文'}`, () => { setLang(getLang() === 'zh' ? 'en' : 'zh'); App.applyLang(); App.go('title'); }, 'small'));
+    if (App.hd3) m.appendChild(btn(App.hdLabel(), () => { App.setHd(!App.hdOn); App.go('title'); }, 'small'));
     box.appendChild(m); p.appendChild(box);
   },
   draw() { const c = App.cx, w = App.w, h = App.h;
-    c.drawImage(diorama('castle', Math.round(w), Math.round(h), 0.62), 0, 0); particles(c, 'tower', w, h, App.time, 60);
+    if (App.hd({ scene: 'arena', theme: 'castle', title: true })) c.clearRect(0, 0, w, h); else { c.drawImage(diorama('castle', Math.round(w), Math.round(h), 0.62), 0, 0); particles(c, 'tower', w, h, App.time, 60); }
     // the eight stars of the heroes circling the title
     for (let i = 0; i < 8; i++) { const a = App.time * 0.12 + i / 8 * Math.PI * 2, r = Math.min(w, h) * 0.34, x = w / 2 + Math.cos(a) * r, y = h * 0.36 + Math.sin(a) * r * 0.35; bloom(c, x, y, 26, H(i * 45, 70, 70, 0.9), 0.8); c.fillStyle = '#fff'; c.beginPath(); c.arc(x, y, 1.8, 0, 7); c.fill(); } },
 };
@@ -127,10 +128,14 @@ function frame(now) {
   if (App.cv.clientWidth && (Math.abs(App.cv.clientWidth - App.w) > 1 || Math.abs(App.cv.clientHeight - App.h) > 1)) { resize(); const r = App.screens[App.screen]; if (r && r.resize) r.resize(); }
   const s = App.screens[App.screen]; if (!s) return;
   if (s.tick) s.tick(dt, input);
+  App.hdUsed = false;
   if (s.draw) s.draw();
+  $('#gl').style.visibility = App.hdUsed ? 'visible' : 'hidden';
 }
 requestAnimationFrame(frame);
 // cloud saves shared by the site's games (optional)
 import('/save.js').then(async (m) => { App.cloud = m; if (await m.pull('eightfold-saga', 'efs_save') && App.screen === 'title') App.go('title'); }).catch(() => {});
 window.__efs = { App, DB, newGame, rest, fromSave, event };
+// HD-2D: three.js is loaded from the CDN; until (unless) it arrives the painted 2D scenes are used
+import('./ui/hd3d.js?v=1').then((m) => { try { App.hd3 = m.create($('#gl')); } catch (e) { App.hd3 = null; } if (App.hd3 && App.screen === 'title') App.go('title'); }).catch(() => {});
 App.go('title');

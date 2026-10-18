@@ -137,7 +137,9 @@ function guildScreen() {
 }
 App.screens.town = {
   enter() { if (App.screen !== 'town') return; square(); },
-  draw() { const st = town().style; App.cx.drawImage(townScene(st, Math.round(App.w), Math.round(App.h)), 0, 0); particles(App.cx, themeParticles(st), App.w, App.h * 0.8, App.time, 36); },
+  draw() { const st = town().style;
+    if (App.hd({ scene: 'town', style: st })) { App.cx.clearRect(0, 0, App.w, App.h); return; }
+    App.cx.drawImage(townScene(st, Math.round(App.w), Math.round(App.h)), 0, 0); particles(App.cx, themeParticles(st), App.w, App.h * 0.8, App.time, 36); },
 };
 
 // ---------------------------------------------------------------- the world map

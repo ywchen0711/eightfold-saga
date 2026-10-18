@@ -80,7 +80,7 @@ async function fight(s) {
 function leave() { const S = App.S; S.loc = S.dungeon.id; S.dungeon = null; App.save(); App.go('world'); }
 
 // for tests: look at the floor and jump next to a spot
-App.dbg = { floor: () => fl, pos: () => [px, py], tp(x, y) { px = x; py = y; App.S.dungeon.x = x; App.S.dungeon.y = y; }, clearSyms() { syms = []; }, step: (dx, dy) => step(dx, dy) };
+App.dbg = { floor: () => fl, syms: () => syms, pos: () => [px, py], tp(x, y) { px = x; py = y; App.S.dungeon.x = x; App.S.dungeon.y = y; }, clearSyms() { syms = []; }, step: (dx, dy) => step(dx, dy) };
 App.screens.dungeon = {
   enter(arg = {}) {
     const S = App.S;
@@ -108,6 +108,7 @@ App.screens.dungeon = {
   // drifting dust and a tilt-shift blur at the top and bottom of the view
   draw() {
     if (!fl) return;
+    if (draw3d()) return;
     const W = App.w, H = App.h, ts = Math.round(Math.max(52, Math.min(96, Math.min(W, H) / 9))), lift = Math.round(ts * 0.5), PX = Math.max(2, Math.round(ts / 32));
     const c = scene(W, H), S = App.S, T = THEMES[fl.theme] || THEMES.cave;
     const ox = Math.round(W / 2 - (px + 0.5) * ts), oy = Math.round(H / 2 - (py + 0.5) * ts + lift * 0.5);
@@ -155,6 +156,24 @@ App.screens.dungeon = {
   },
   key(k) { if (k === 'menu') App.go('menu', { from: 'dungeon' }); },
 };
+// ---------------------------------------------------------------- HD-2D in 3D: the floor as a lit diorama (js/ui/hd3d.js)
+let dispX = null, dispY = null, lastDraw = 0;
+function draw3d() {
+  if (!App.hd3 || !App.hdOn) return false;
+  const S = App.S, { heroCanvas, monCanvas } = App.hd3, dt = Math.min(0.1, Math.max(0, App.time - lastDraw)); lastDraw = App.time;
+  if (dispX === null || Math.abs(dispX - px) + Math.abs(dispY - py) > 3) { dispX = px; dispY = py; }
+  const k = Math.min(1, dt * 14); dispX += (px - dispX) * k; dispY += (py - dispY) * k;
+  const lead = S.party[0], sprites = [{ img: heroCanvas(lead.id, anim > 0 ? 'step' : 'idle', Math.floor(App.time * 2) % 2, weaponsOf(lead)[0].type, face > 0), x: dispX + 0.5, z: dispY + 0.62, upp: 1 / 30, foot: 38, shadow: 0.7 }];
+  for (const s of syms) {
+    if (s._x === undefined || Math.abs(s._x - s.x) + Math.abs(s._y - s.y) > 3) { s._x = s.x; s._y = s.y; }
+    s._x += (s.x - s._x) * k; s._y += (s.y - s._y) * k;
+    if (Math.abs(s._x - dispX) > 14 || Math.abs(s._y - dispY) > 11) continue;
+    const fm = DB.families[s.fam]; sprites.push({ img: monCanvas(fm.art, fm.hue, Math.floor(App.time * 2 + s.id) % 2), x: s._x + 0.5, z: s._y + 0.6, upp: 1 / 100, foot: 140, alpha: s.stun > 0 ? 0.45 : 1, shadow: 0.8 });
+  }
+  const ok = App.hd({ scene: 'dungeon', fl, hx: dispX + 0.5, hz: dispY + 0.5, sprites, opened: (c) => !!S.done['chest:' + c.key], cleared: !!S.cleared[fl.id] });
+  if (ok) App.cx.clearRect(0, 0, App.w, App.h);
+  return ok;
+}
 // ---------------------------------------------------------------- drawing helpers
 // the frame is drawn off-screen first, so the top and bottom can be blurred (tilt-shift depth of field)
 const scn = document.createElement('canvas'), sx = scn.getContext('2d');
