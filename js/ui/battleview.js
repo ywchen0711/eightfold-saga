@@ -5,7 +5,7 @@ import { DB } from '../data/index.js';
 import { rng, weaponsOf, techsFor, derived } from '../engine/state.js';
 import { startBattle, resolveTurn, autoCommand, finishBattle, unitOf } from '../engine/battle.js';
 import { App, $, el, btn, esc, toast, itemName } from './app.js';
-import { L, t } from './i18n.js';
+import { L, t, getLang } from './i18n.js';
 import { diorama, particles, shadow, monsterSprite, bloom, lightOf } from './hd.js';
 import { drawChibi } from './chibi.js';
 
@@ -102,7 +102,16 @@ function draw() {
   // text on top: damage numbers, the line of the round, glimmers
   for (const n of fx) { c.globalAlpha = Math.min(1, n.t * 2); c.font = `${n.big ? 30 : 22}px "DotGothic16", "Noto Sans TC", "Microsoft JhengHei", monospace`; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.85)'; c.strokeText(n.text, n.x, n.y); c.fillStyle = n.col; c.fillText(n.text, n.x, n.y); }
   c.globalAlpha = 1; c.textAlign = 'left';
-  for (const e of B.enemies) if (!e.ko && Object.keys(e.st).length) { c.font = '12px "DotGothic16", "Noto Sans TC", "Microsoft JhengHei", monospace'; c.fillStyle = '#ffe08a'; c.fillText(Object.keys(e.st).map((k) => L(DB.statuses[k])).join(' '), e.vx - 24, e.vy + 16); }
+  // each monster's ailments under its feet, lifted above the command and status windows when they would hide them
+  let boxes = null;
+  for (const e of B.enemies) {
+    const tags = e.ko ? [] : stTags(e); if (!tags.length) continue;
+    if (!boxes) { const cr = App.cv.getBoundingClientRect(); boxes = [...document.querySelectorAll('#panel .cmd, #hud .bstat')].map((n) => n.getBoundingClientRect()).map((r) => ({ l: r.left - cr.left, r: r.right - cr.left, t: r.top - cr.top })); }
+    c.font = '12px "DotGothic16", "Noto Sans TC", "Microsoft JhengHei", monospace'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.85)';
+    const w = c.measureText(tags.map((g) => g[0]).join(' ')).width; let x = e.vx - 24, y = e.vy + 16;
+    for (const r of boxes) if (x + w > r.l && x < r.r) y = Math.min(y, r.t - 6);
+    for (const [s, col] of tags) { c.strokeText(s, x, y); c.fillStyle = col; c.fillText(s, x, y); x += c.measureText(s + ' ').width; }
+  }
   if (msg) { c.font = '17px "DotGothic16", "Noto Sans TC", "Microsoft JhengHei", monospace'; const tw = c.measureText(msg).width, x0 = W / 2 - tw / 2 - 28; const g = c.createLinearGradient(x0, 0, x0 + tw + 56, 0); g.addColorStop(0, 'rgba(8,8,16,0)'); g.addColorStop(0.15, 'rgba(8,8,16,.85)'); g.addColorStop(0.85, 'rgba(8,8,16,.85)'); g.addColorStop(1, 'rgba(8,8,16,0)');
     c.fillStyle = g; c.fillRect(x0, 12, tw + 56, 32); c.fillStyle = 'rgba(214,190,130,.6)'; c.fillRect(x0 + 20, 12, tw + 16, 1); c.fillRect(x0 + 20, 43, tw + 16, 1); c.fillStyle = '#f4ecd8'; c.textAlign = 'center'; c.fillText(msg, W / 2, 34); c.textAlign = 'left'; }
   if (glim) { const a = Math.min(1, glim.t * 2), cy = H * 0.3; c.globalAlpha = a; bloom(c, glim.x || W / 2, cy - 20, 120, 'rgba(255,236,170,.9)', 0.55);
@@ -116,11 +125,19 @@ function tick(dt) {
   for (const k in flash) flash[k] -= dt; if (shake > 0) shake -= dt * 30; if (glim) { glim.t -= dt; if (glim.t <= 0) glim = null; }
 }
 // ---------------------------------------------------------------- the status window (name, HP, WP, JP, LP)
+// every ailment, stat stage (an arrow per stage) and regeneration as short coloured tags
+const STAGE_N = { atk: ['攻', 'ATK'], def: ['防', 'DEF'], mag: ['術', 'MAG'], agi: ['速', 'SPD'] };
+function stTags(u) {
+  const zh = getLang() === 'zh', out = Object.keys(u.st).filter((s) => DB.statuses[s]).map((s) => [L(DB.statuses[s]), DB.statuses[s].col]);
+  for (const [k, n] of Object.entries(STAGE_N)) { const v = (u.buff && u.buff[k]) || 0; if (v) out.push([n[zh ? 0 : 1] + (v > 0 ? '↑' : '↓').repeat(Math.abs(v)), v > 0 ? '#ffb070' : '#8ab0ff']); }
+  if (u.regen && u.regen.turns > 0) out.push([zh ? '再生' : 'Regen', '#8affb0']);
+  return out;
+}
 function partyBar() {
   const hud = $('#hud'); hud.innerHTML = ''; const box = el('div', 'bstat bwin');
   for (const u of B.party) {
     const c = u.c, d = u.d, row = el('div', 'brow' + (u.ko ? ' ko' : '') + (who === u.i && !busy ? ' cur' : '') + (flash['p' + u.i] > 0 ? ' hit' : ''));
-    const st = Object.keys(u.st).map((s) => `<span style="color:${DB.statuses[s].col}">${L(DB.statuses[s])}</span>`).join(' ');
+    const st = stTags(u).map(([s, col]) => `<span style="color:${col}">${esc(s)}</span>`).join(' ');
     row.innerHTML = `<b class="bn">${esc(L(DB.chars[c.id]))}</b><span class="bh"><i style="width:${Math.max(0, u.hp / d.mhp * 100)}%"></i><em>${Math.max(0, Math.round(u.hp))}</em></span>`
       + `<span class="bw">WP<b>${c.wp}</b></span><span class="bw">JP<b>${c.jp}</b></span><span class="bl">LP<b>${c.lp}</b></span><span class="bs">${st}</span>`;
     row.onclick = () => { if (pickAlly) pickAlly(u.i); };
