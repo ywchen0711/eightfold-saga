@@ -6,10 +6,12 @@ import { L, t, getLang, setLang } from './i18n.js';
 import { portraitChibi as portrait } from './chibi.js';
 import { desc, kindName } from './places.js';
 
-let tab = 'status', from = 'town', who = 0, slotSel = null;
+let tab = 'status', from = 'town', who = 0, slotSel = null, shown = '';
 const TABS = ['status', 'equip', 'skills', 'items', 'stones', 'system'];
 function draw() {
-  const S = App.S, p = $('#panel'); p.innerHTML = '';
+  // a redraw keeps the list where it was scrolled, instead of jumping back to the top
+  const S = App.S, p = $('#panel'), old = p.querySelector('.wbody'), keep = old && shown === tab + who ? old.scrollTop : 0; p.innerHTML = '';
+  shown = tab + who;
   const box = el('div', 'win menu');
   const head = el('div', 'whead'); head.appendChild(el('h2', '', t(tab === 'skills' ? 'skills' : tab)));
   head.appendChild(btn('✕', () => App.go(from, { back: true }), 'x')); box.appendChild(head);
@@ -20,6 +22,8 @@ function draw() {
     box.appendChild(who2);
   }
   const body = el('div', 'wbody'); box.appendChild(body); p.appendChild(box);
+  // an opened equipment picker is scrolled into view
+  requestAnimationFrame(() => { body.scrollTop = keep; const pk = body.querySelector('.pick'); if (pk) pk.scrollIntoView({ block: 'nearest' }); });
   who = Math.min(who, S.party.length - 1);
   const c = S.party[who], d = derived(c, S), dc = DB.chars[c.id];
   if (tab === 'status') {

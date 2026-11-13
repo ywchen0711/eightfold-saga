@@ -31,6 +31,12 @@ function layout() {
   // the party: a slanted column from front-left to back-right (the SaGa formation)
   const m = B.party.length;
   B.party.forEach((u, i) => { const f = m > 1 ? i / (m - 1) : 0.5; u.vx = W * (wide ? 0.62 : 0.6) + W * (wide ? 0.27 : 0.32) * f + (i % 2 ? W * 0.025 : 0); u.vy = yA - H * 0.03 + (yB - yA + H * 0.05) * f; });
+  // on a wide screen the back of the column keeps its feet above the party window instead of standing behind it
+  if (wide && m) {
+    const bs = document.querySelector('#hud .bstat'), top = (bs ? bs.getBoundingClientRect().top - App.cv.getBoundingClientRect().top : H * 0.68) - 8;
+    const y0 = B.party[0].vy, last = Math.max(...B.party.map((u) => u.vy));
+    if (last > top && last > y0) B.party.forEach((u) => { u.vy = y0 + (u.vy - y0) * Math.max(0, top - y0) / (last - y0); });
+  }
 }
 // ---------------------------------------------------------------- drawing
 function draw() {
@@ -144,6 +150,7 @@ function partyBar() {
     box.appendChild(row);
   }
   hud.appendChild(box);
+  if (!narrow()) layout();
 }
 // ---------------------------------------------------------------- choosing commands
 let pickTarget = null, pickAlly = null, busy = false;
@@ -166,7 +173,14 @@ function panel(title, items, back = true) {
   const p = $('#panel'); p.innerHTML = ''; const box = el('div', 'cmd'); box.appendChild(el('div', 'ctitle', title));
   const list = el('div', 'clist'); for (const [label, fn, dis, sub] of items) { const b = btn(label + (sub ? `<small>${sub}</small>` : ''), fn); b.disabled = !!dis; list.appendChild(b); }
   box.appendChild(list); if (back) box.appendChild(btn(t('back'), () => { pickTarget = pickAlly = null; menu(); }, 'back'));
-  p.appendChild(box);
+  p.appendChild(box); fitCmd(box);
+}
+// on a phone the command window sits right above the party window, however tall its status lines make it
+function fitCmd(box) {
+  const s = $('#hud .bstat');
+  if (!s || window.innerWidth > 700) { box.style.bottom = box.style.maxHeight = ''; return; }
+  const h = Math.ceil(s.getBoundingClientRect().height);
+  box.style.bottom = `${h + 14}px`; box.style.maxHeight = `calc(56vh - ${h + 22}px)`;
 }
 function menu() {
   const u = B.party[who], c = u.c, ws = weaponsOf(c);
@@ -368,7 +382,7 @@ App.screens.battle = {
     if (pickTarget) for (const e of B.enemies) if (!e.ko && Math.abs(vx - e.vx) < 60 * e.k && vy < e.vy + 10 && vy > e.vy - 130 * e.k) { pickTarget(e.i); return; }
     if (pickAlly) for (const u of B.party) if (Math.abs(vx - u.vx) < 16 * G.PX && vy < u.vy + 6 && vy > u.vy - 64 * G.PX) { pickAlly(u.i); return; }
   },
-  resize() { if (B) { layout(); partyBar(); } },
+  resize() { if (B) { layout(); partyBar(); const c = $('#panel .cmd'); if (c) fitCmd(c); } },
   key(k) { if (k === 'cancel' && !busy && (pickTarget || pickAlly)) { pickTarget = pickAlly = null; menu(); } },
 };
 export { derived };
